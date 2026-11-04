@@ -879,6 +879,37 @@ export async function listUnmatched(limit: number): Promise<unknown[]> {
   return out;
 }
 
+/* =========================== 桌面监控端上报快照 =========================== */
+
+/**
+ * 每个 agent_id 只保留**最新一份**快照。
+ *
+ * 刻意不做历史归档：桌面端默认 30 秒一轮，三台机器一个月就是几十万条，
+ * Blob 的 1 GB 免费额度会先被监控数据吃掉，而值班真正要看的只有「现在怎么样」。
+ * 趋势分析交给平台日志或外部时序库，不在这里堆。
+ */
+export async function putAgentReport(agentId: string, doc: unknown): Promise<void> {
+  await writeJson(`ag/${agentId}`, doc);
+}
+
+export async function getAgentReport(agentId: string): Promise<unknown> {
+  return readJson<unknown>(`ag/${agentId}`);
+}
+
+export async function listAgentReports(): Promise<unknown[]> {
+  const keys = (await s().keys('ag/')).sort();
+  const out: unknown[] = [];
+  for (const k of keys) {
+    const doc = await readJson<unknown>(k);
+    if (doc) out.push(doc);
+  }
+  return out;
+}
+
+export async function removeAgentReport(agentId: string): Promise<void> {
+  await s().del(`ag/${agentId}`);
+}
+
 /** 测试用：清掉摘要缓存 */
 export function clearCaches(): void {
   shardCache.clear();

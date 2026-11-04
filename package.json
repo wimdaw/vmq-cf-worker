@@ -16,6 +16,8 @@
     "eo:smoke": "node scripts/eo-smoke.mjs",
     "eo:routes": "edgeone makers generate-routes",
     "eo:deploy": "pnpm eo:build && pnpm eo:routes && edgeone makers deploy",
+    "agent:build": "cd agent && ./scripts/build.sh",
+    "agent:test": "cd agent && go test ./...",
     "typecheck": "tsc --noEmit",
     "test:web": "pnpm --filter @vmq/web typecheck",
     "test:md5": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/md5.check.mjs",

@@ -35,6 +35,8 @@ const ROUTES: Array<[string, string]> = [
   ['/api/order/status?orderId=', '支付页轮询'],
   ['/api/stats', '本页数据的 JSON 版本'],
   ['/api/health', '健康检查'],
+  ['/api/agent/report', '桌面监控端上报（Win/macOS/Linux 统一入口）'],
+  ['/api/agent/state', '各桌面监控端最新状态'],
 ];
 
 export async function collectStats(env: Env): Promise<Stats> {

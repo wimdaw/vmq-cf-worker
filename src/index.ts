@@ -2,6 +2,7 @@ import type { Env } from './lib/db';
 import { adminAlias, primeAdminAlias } from './lib/db';
 import { runCron } from './cron';
 import { handleAdminApi } from './routes/api-admin';
+import { handleAgentOne, handleAgentReport, handleAgentState } from './routes/agent';
 import { handleHome, handleStats } from './routes/home';
 import { handleCheckOrder, handleOrderStatus, handlePayPage } from './routes/pay';
 import { handleHeart, handlePush } from './routes/push';
@@ -74,6 +75,14 @@ export default {
     // 监控端（路径与旧版一致，App 不用改）
     if (path === '/appPush' || path === '/index/pay/appPush') return handlePush(req, env, ctx);
     if (path === '/appHeart' || path === '/index/pay/appHeart') return handleHeart(req, env);
+
+    // 桌面监控端（Windows / macOS / Linux）的统一接入点。
+    // 三端推同一份 Report，服务端按 agent_id 覆盖式保存最新快照。
+    if (path === '/api/agent/report') return handleAgentReport(req, env);
+    if (path === '/api/agent/state') return handleAgentState(req, env);
+    if (path.startsWith('/api/agent/state/')) {
+      return handleAgentOne(req, env, decodeURIComponent(path.slice('/api/agent/state/'.length)));
+    }
 
     // 商户下单。三个地址指向同一个处理器：
     //   /api/order/create —— 对外文档用的规范地址，和 /api/order/status 成对（建单 / 查单）

@@ -207,6 +207,45 @@ async function main(): Promise<void> {
   const adminApi = await call('/api/admin/overview');
   check('未登录拿不到后台数据', adminApi.status !== 200, String(adminApi.status));
 
+  console.log('\n[11] 桌面监控端上报（Win/macOS/Linux 统一接入）');
+  const snapshot = {
+    v: '1',
+    agent_id: 'smoke-host',
+    ts: now(),
+    interval: 30,
+    host: { name: 'smoke-host', os: 'darwin', arch: 'arm64' },
+    system: { cpu: { usage_pct: 3.5, cores: 8 } },
+    business: { up: true, orders: { '0': 1 } },
+    metrics: { cpu_pct: 3.5, service_up: 1 },
+  };
+  const post = (body: unknown, token: string) =>
+    call('/api/agent/report', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-agent-token': token },
+      body: JSON.stringify(body),
+    });
+
+  const okRep = await post(snapshot, KEY);
+  check('合法快照被接收', okRep.status === 200 && ((await okRep.json()) as { code: number }).code === 0);
+  const stored = (await db.listAgentReports()) as Array<Record<string, unknown>>;
+  check('快照按 agent_id 落库', stored.length === 1 && stored[0]?.['agent_id'] === 'smoke-host', JSON.stringify(stored.map((s) => s['agent_id'])));
+  check('落库时写入 received_at', Number(stored[0]?.['received_at'] ?? 0) > 0);
+
+  const badToken = await post(snapshot, 'wrong-token');
+  check('令牌不对拒绝写入', badToken.status === 401, String(badToken.status));
+
+  const badVer = await post({ ...snapshot, v: '99' }, KEY);
+  check('协议版本不匹配被拒', ((await badVer.json()) as { code: number }).code === -1);
+
+  const noId = await post({ ...snapshot, agent_id: '' }, KEY);
+  check('缺 agent_id 被拒', ((await noId.json()) as { code: number }).code === -1);
+
+  const dirty = await post({ ...snapshot, agent_id: 'host/with space' }, KEY);
+  check('agent_id 被收敛成合法 key', ((await dirty.json()) as { agent_id?: string }).agent_id === 'host-with-space');
+
+  const stateUnauth = await call('/api/agent/state');
+  check('未登录读不到监控端列表', stateUnauth.status === 401, String(stateUnauth.status));
+
   receiver.close();
 
   console.log(`\n结果：${pass} 通过 / ${fail} 失败\n`);

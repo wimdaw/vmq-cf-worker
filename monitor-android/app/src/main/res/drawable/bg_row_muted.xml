@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通道列表行底色：比卡片再浅一档，靠圆角和间距分组 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface_muted" />
+    <corners android:radius="8dp" />
+</shape>

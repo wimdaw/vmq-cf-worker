@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="purple_500">#FF6650a4</color>
+    <color name="purple_700">#FF4F378B</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+
+    <color name="brand">#FF1F6FEB</color>
+    <color name="brand_dark">#FF185FA5</color>
+    <color name="brand_soft">#FFE8F1FE</color>
+
+    <color name="status_ok">#FF1F8B4C</color>
+    <color name="status_warn">#FFB25E09</color>
+    <color name="status_bad">#FFC03636</color>
+    <color name="status_ok_soft">#FFE6F4EC</color>
+    <color name="status_warn_soft">#FFFDF1E0</color>
+    <color name="status_bad_soft">#FFFBEAEA</color>
+
+    <color name="surface">#FFFFFFFF</color>
+    <color name="surface_muted">#FFF3F4F6</color>
+    <color name="text_primary">#FF1A1A1A</color>
+    <color name="text_secondary">#FF5F5E5A</color>
+    <color name="text_tertiary">#FF8E8D88</color>
+    <color name="divider">#FFE5E7EB</color>
+
+    <!-- 未激活的状态点：中性灰，不传达"错误" -->
+    <color name="dot_idle">#FFC7C9CE</color>
+</resources>

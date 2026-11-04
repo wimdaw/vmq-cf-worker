@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      权限只留真正用到的。下面三个**不要加**，理由记在这里：
+
+      · ACCESS_NETWORK_STATE —— 全工程没有 ConnectivityManager / NetworkInfo 调用。
+        网络可达性不做预判：发不出去就进 pending_push 重试队列，
+        比「先查网络再决定发不发」更可靠。
+      · VIBRATE —— 看着像扫码要用（zxing 的 BeepManager 里确实有
+        Vibrator.vibrate(200)），但 BeepManager 的 vibrateEnabled 默认是 false，
+        CaptureManager 只调了 setBeepEnabled，那条路径永远不会执行。
+      · BIND_NOTIFICATION_LISTENER_SERVICE 的 uses-permission —— signature 级权限，
+        普通应用申请不到，写了也不生效。真正起作用的是下面 <service> 上的
+        android:permission 属性（那个必须保留）。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 前台服务保活 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 电池优化白名单：防止系统杀掉后台 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 扫码配置 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <application
+        android:name=".MonitorApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.VmqMonitor"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          扫码页。**必须显式写 portrait**：
+          它继承自 zxing 的 CaptureActivity，而库的 manifest 给那个类写死了
+          `sensorLandscape`；不覆盖的话一进扫码就被转成横版。
+          这里是不同的类名，所以是独立组件，不涉及 tools:replace。
+        -->
+        <activity
+            android:name=".ui.ScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.VmqMonitor.Scan"
+            android:windowSoftInputMode="stateAlwaysHidden"
+            tools:ignore="LockedOrientationActivity" />
+
+        <!--
+          通知监听服务。用户需要在系统设置里手动授予「通知使用权」。
+          声明这个权限后，服务只能由系统绑定，其它应用无法启动它。
+        -->
+        <service
+            android:name=".monitor.NoticeService"
+            android:exported="false"
+            android:label="@string/service_notice_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- 前台服务：驱动心跳与推送重试队列，被系统杀掉后 START_STICKY 会重启 -->
+        <service
+            android:name=".monitor.MonitorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".monitor.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

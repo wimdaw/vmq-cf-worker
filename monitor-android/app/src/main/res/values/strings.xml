@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">V免签监控端</string>
+    <string name="service_notice_label">V免签监控端 · 通知监听</string>
+
+    <!-- 面板 -->
+    <string name="tab_monitor">监控</string>
+    <string name="tab_config">配置</string>
+    <string name="tab_about">关于</string>
+
+    <!-- 监控面板 -->
+    <string name="monitor_service_status">服务状态</string>
+    <string name="monitor_running">监控中</string>
+    <string name="monitor_stopped">已停止</string>
+    <string name="monitor_start">开始监控</string>
+    <string name="monitor_stop">停止</string>
+    <string name="monitor_not_configured_hint">尚未配置，去「配置」页扫码或手填</string>
+    <string name="monitor_requirements">运行条件</string>
+    <string name="monitor_ready_count">%1$d/%2$d 就绪</string>
+    <string name="monitor_config">服务配置</string>
+    <string name="monitor_config_done">已完成</string>
+    <string name="monitor_heartbeat_ok">正常</string>
+    <string name="monitor_heartbeat_fail">异常</string>
+    <string name="monitor_heartbeat_none">—</string>
+    <string name="monitor_pending_value">%1$d 条</string>
+    <string name="monitor_notice_permission">通知使用权</string>
+    <string name="monitor_notice_permission_granted">已授予</string>
+    <string name="monitor_notice_permission_missing">去授予</string>
+    <string name="monitor_notice_not_connected">未连接 · 点击修复</string>
+    <string name="monitor_battery_whitelist">电池优化白名单</string>
+    <string name="monitor_battery_on">已加入</string>
+    <string name="monitor_battery_off">去加入</string>
+    <string name="monitor_passages">通道</string>
+    <string name="monitor_no_passage">尚未配置通道，去「配置面板」扫码或手工录入</string>
+    <string name="monitor_recent_log">最近通知</string>
+    <string name="monitor_log_empty">暂无记录。收到到账通知后会显示在这里。</string>
+    <string name="monitor_pending_push">待推送</string>
+    <string name="monitor_pending_push_empty">队列为空，推送都成功了</string>
+    <string name="monitor_clear_log">清空</string>
+    <string name="monitor_remove_passage_title">移除「%s」通道？</string>
+    <string name="monitor_remove_passage_message">移除后，这一类型的到账通知将不再上报，直到重新扫码或手工配置。</string>
+    <string name="monitor_test_notice">发一条测试通知自检</string>
+    <string name="monitor_heartbeat">心跳</string>
+
+    <!-- 配置面板 -->
+    <string name="config_notice_address">通知地址</string>
+    <string name="config_notice_address_hint">域名或 IP，例如 pay.example.com。不要带协议，固定走 HTTPS</string>
+    <string name="config_comm_key">通讯密钥</string>
+    <string name="config_comm_key_hint">与手机 App 配置的那串一致，三条链路共用</string>
+    <string name="config_scan">扫码配置</string>
+    <string name="config_scan_hint">扫后台「APP扫码配置」生成的二维码，格式 域名/密钥/通道ID,类型</string>
+    <string name="config_manual">手工录入</string>
+    <string name="config_manual_hint">直接粘贴二维码内容，或按上面格式手输</string>
+    <string name="config_passages">通道列表</string>
+    <string name="config_add_passage">添加通道</string>
+    <string name="config_channel_type">支付类型</string>
+    <string name="config_channel_id">通道 ID</string>
+    <string name="config_save">保存配置</string>
+    <string name="config_saved">配置已保存</string>
+    <string name="config_delete">删除</string>
+    <string name="config_key_required">请填写通讯密钥</string>
+    <string name="config_url_required">请填写通知地址</string>
+    <string name="config_current">当前配置</string>
+    <string name="config_not_set">未配置</string>
+    <string name="config_row_edit_hint">点击任意一行即可修改；通道留空表示不使用该通道</string>
+    <string name="config_gallery_no_qr">图片里没找到二维码，换一张试试</string>
+    <string name="config_qr_invalid">二维码格式不正确，应为 域名/密钥/通道ID,类型</string>
+    <string name="config_passage_title">%s 通道</string>
+    <string name="config_deleted_toast">已删除</string>
+
+    <!-- 扫码页 -->
+    <string name="scan_title">扫码</string>
+    <string name="scan_gallery">相册</string>
+    <string name="scan_torch">轻触照亮</string>
+    <string name="scan_torch_on">轻触关闭</string>
+    <string name="scan_back">返回</string>
+
+    <!-- 通道类型 -->
+    <string name="type_1">微信</string>
+    <string name="type_2">支付宝</string>
+    <string name="type_3">QQ钱包</string>
+    <string name="type_4">数字人民币</string>
+
+    <!-- 关于 -->
+    <string name="about_usage_title">使用说明</string>
+    <string name="about_step1_title">授予「通知使用权」</string>
+    <string name="about_step1_desc">设置 → 通知 → 通知使用权 → 找到「V免签监控端」打开。没有这个权限，一条通知都收不到。</string>
+    <string name="about_step2_title">填写配置</string>
+    <string name="about_step2_desc">在「配置」页扫码或手工填写「域名/密钥/通道ID,类型」。地址不用带 https://，协议是固定的。</string>
+    <string name="about_step3_title">开始监控</string>
+    <string name="about_step3_desc">回「监控」页点「开始监控」。顺手把电池优化白名单加上，否则后台可能被系统杀掉。</string>
+
+    <string name="about_faq_title">常见问题</string>
+    <string name="about_faq1_q">收不到通知</string>
+    <string name="about_faq1_a">先看「通知使用权」那行：显示「未连接 · 点击修复」说明权限还在但服务没绑上，去设置里关掉再打开；显示「已授予」仍收不到，检查是不是被「强行停止」过。</string>
+    <string name="about_faq2_q">心跳异常</string>
+    <string name="about_faq2_a">连续 5 轮请求失败会冷却 60 秒再试。先确认手机能上网、通知地址填对（不要带 http:// 前缀）。</string>
+    <string name="about_faq3_q">待推送不归零</string>
+    <string name="about_faq3_a">说明有单子没发出去，会自动重试（最长 60 秒一次）。看「最近通知」里那条的金额，确认服务端能连通。</string>
+    <string name="about_faq4_q">误点了「强行停止」</string>
+    <string name="about_faq4_a">通知监听会失效，而且重新打开 App 也不会恢复。去设置 → 通知 → 通知使用权，把它关掉再打开即可。</string>
+
+    <string name="about_version_title">版本信息</string>
+    <string name="about_version_name">版本号</string>
+    <string name="about_build_time">编译时间</string>
+    <string name="about_package_name">包名</string>
+    <string name="about_privacy">配置在本机加密保存；通知日志最多保留 500 条，可在「监控」页清空。</string>
+
+    <!-- 通用 -->
+    <string name="common_ok">确定</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_delete">删除</string>
+    <string name="common_delete_confirm">确认删除？</string>
+    <string name="common_empty">暂无数据</string>
+</resources>

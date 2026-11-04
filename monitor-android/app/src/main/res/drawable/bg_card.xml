@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  卡片底：纯白 + 14dp 圆角，不用描边。
+  分隔感靠 elevation 阴影 + 页面底色（surface_muted）拉开层次，
+  描边会让卡片看起来像输入框，跟"可点行"的视觉语言冲突。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/surface" />
+    <corners android:radius="14dp" />
+</shape>

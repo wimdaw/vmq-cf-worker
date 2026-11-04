@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  配置面板。
+
+  「信息行 + 全宽按钮」，每行右侧加了 › 提示可点 —— 点哪行改哪行。
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_muted"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="28dp">
+
+        <!-- ============ 当前配置 ============ -->
+        <LinearLayout
+            style="@style/CardBlock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/TextTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/config_current" />
+
+            <!-- 通知地址 -->
+            <LinearLayout
+                android:id="@+id/rowUrl"
+                style="@style/RowClickable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    style="@style/TextBody"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/config_notice_address" />
+
+                <TextView
+                    android:id="@+id/tvUrlValue"
+                    style="@style/TextBody"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:singleLine="true"
+                    android:text="@string/config_not_set"
+                    android:textColor="@color/text_secondary" />
+
+                <TextView
+                    style="@style/TextCaption"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="›"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- 通讯密钥 -->
+            <LinearLayout
+                android:id="@+id/rowKey"
+                style="@style/RowClickable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    style="@style/TextBody"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/config_comm_key" />
+
+                <TextView
+                    android:id="@+id/tvKeyValue"
+                    style="@style/TextBody"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:singleLine="true"
+                    android:text="@string/config_not_set"
+                    android:textColor="@color/text_secondary" />
+
+                <TextView
+                    style="@style/TextCaption"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="›"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- 微信通道 -->
+            <LinearLayout
+                android:id="@+id/rowWx"
+                style="@style/RowClickable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    style="@style/TextBody"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/type_1" />
+
+                <TextView
+                    android:id="@+id/tvWxValue"
+                    style="@style/TextBody"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:singleLine="true"
+                    android:text="@string/config_not_set"
+                    android:textColor="@color/text_secondary" />
+
+                <TextView
+                    style="@style/TextCaption"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="›"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- 支付宝通道 -->
+            <LinearLayout
+                android:id="@+id/rowAli"
+                style="@style/RowClickable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    style="@style/TextBody"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/type_2" />
+
+                <TextView
+                    android:id="@+id/tvAliValue"
+                    style="@style/TextBody"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:singleLine="true"
+                    android:text="@string/config_not_set"
+                    android:textColor="@color/text_secondary" />
+
+                <TextView
+                    style="@style/TextCaption"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="›"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
+            <!-- 数字人民币通道 -->
+            <LinearLayout
+                android:id="@+id/rowDcep"
+                style="@style/RowClickable"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    style="@style/TextBody"
+                    android:layout_width="88dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/type_4" />
+
+                <TextView
+                    android:id="@+id/tvDcepValue"
+                    style="@style/TextBody"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:gravity="end"
+                    android:singleLine="true"
+                    android:text="@string/config_not_set"
+                    android:textColor="@color/text_secondary" />
+
+                <TextView
+                    style="@style/TextCaption"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="›"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <TextView
+                style="@style/TextCaption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/config_row_edit_hint" />
+        </LinearLayout>
+
+        <!-- ============ 导入配置 ============ -->
+        <LinearLayout
+            style="@style/CardBlock"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnScan"
+                style="@style/BtnPrimary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/config_scan" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnManual"
+                style="@style/BtnOutline"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/config_manual" />
+
+            <TextView
+                style="@style/TextCaption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/config_scan_hint" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

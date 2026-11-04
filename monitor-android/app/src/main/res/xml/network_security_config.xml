@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置。
+
+  **明文传输彻底禁用，且不提供开关。**
+
+  base-config 的 cleartextTrafficPermitted="false" 会拦掉所有明文请求
+  （API 28+ 报 Cleartext HTTP traffic not permitted）。而「允许明文」这类开关
+  通常只改 URL 的 scheme，实际请求仍被系统拦掉 —— 既不通，又给人「能用 HTTP」
+  的错觉，所以干脆不留这个口子。
+
+  下面故意不写任何 domain-config —— 加一条就等于开了明文通道，
+  通讯密钥、金额、时间戳会在网络上裸奔。需要 HTTP 的场景请给服务端加 TLS。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

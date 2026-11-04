@@ -462,58 +462,51 @@ systemctl restart vmq-agent
 
 ### 9.3 支付宝账单：先探测，再启用
 
-**不要跳过这一步。** 支付宝账单接口没有公开文档，路径和返回结构随版本变化，
-硬编码一个猜出来的地址只会让人以为能用、实际静默失败。
+支付宝个人收款没有可订阅的通知接口，只能**带登录态轮询交易查询接口**。
+以下是社区长期验证过的入口（不是官方文档，随时可能变，所以必须能探测）：
+
+| 项 | 值 |
+| --- | --- |
+| 接口 | `https://mbillexprod.alipay.com/enterprise/tradeListQuery.json` |
+| 来源页面 | `https://b.alipay.com/page/mbillexprod/trade/order/sold`（商家平台 → 交易订单 → 已售出） |
+| 前提 | 手机支付宝搜索「**商家服务**」开通（免费） |
+| 方法 | `POST`，表单体如 `queryType=1&pageSize=20&pageNo=1` |
+
+> ⚠️ **频率红线**：社区实测这个接口 **10 秒一次，几小时后会被判「频繁访问」并封 24 小时**。
+> 所以默认 `poll_sec` 是 **120 秒**，不要为了"更快"往下调。真需要更快时，
+> 只能像 ChenPay 那样准备两套接口轮流切换，代价是复杂度翻倍 —— 不值得。
+
+**拿 cookie**：
+
+1. 浏览器打开 `https://mbillexprod.alipay.com/enterprise/tradeListQuery.htm`，登录
+2. F12 → Network → 刷新页面
+3. 找到 `tradeListQuery.json` 这条请求 → 复制 Request Headers 里的整个 `Cookie`
+
+**然后探测（必做）**：
 
 ```bash
-# 1. 在浏览器登录支付宝网页版，从开发者工具里复制 Cookie（或只复制关键项）
-export VMQ_ALIPAY_COOKIE='...'
-
-# 2. 在配置里填上接口地址（先用你看到的那个账单页，不一定要是 JSON 接口）
+export VMQ_ALIPAY_COOKIE='复制到的 cookie'
 vmq-agent -wallet-probe -config /etc/vmq-agent/config.json
 ```
 
-探测会原样打印服务端返回，再按当前配置试着解析：
+探测会原样打印返回，再按当前配置解析：
 
 ```
+===== alipay-bill =====
 --- 原始返回（前 2000 字节）---
-{"success":true,"data":{"list":[{"gmtCreate":"2026-11-04 20:05:29","amount":"18.01",...}]}}
+{"resultObj":{"detailList":[{"gmtCreate":"2026-11-04 20:05:29","tradeAmount":"18.01",...}]}}
 
 --- 按当前配置解析到 2 条 ---
   18.01        2026-11-04 20:05:29 收钱码收款
   5.00         2026-11-04 18:05:29 三小时前的账单
 ```
 
-看到这个表格就说明 `items_path` / `field_*` 填对了。如果返回是 HTML，
-把 `parser` 改成 `regex`，用命名分组提取：
+- 看到这个表格 → `items_path` / `field_*` 对了，可以启用。
+- 返回 `{"success":false,...}` 或跳登录 → cookie 失效，重新复制。
+- 返回 HTML → 把 `parser` 改成 `regex`，用命名分组 `money` / `time` / `title`。
 
-```json
-{ "parser": "regex", "pattern": "(?P<title>[^<]*收款[^<]*)<[^>]*>[^0-9]*(?P<money>\\d+\\.\\d{2})" }
-```
-
-配置段：
-
-```json
-"wallet": {
-  "enabled": true,
-  "pid": "9",              // 后台某条支付宝通道的 ID，签名要用
-  "poll_sec": 20,          // 建议 20~60 秒，太快会触发风控
-  "alipay": {
-    "endpoint": "https://.../bill/list",
-    "method": "GET",
-    "cookie": "",          // 留空则读环境变量 VMQ_ALIPAY_COOKIE
-    "parser": "json",
-    "items_path": "data.list",
-    "field_time": "gmtCreate",
-    "field_money": "amount",
-    "field_title": "subject",
-    "time_format": "2006-01-02 15:04:05",
-    "window_min": 15
-  }
-}
-```
-
-`window_min` 是「只看多少分钟内的账单」，防止第一次跑就把历史全部重推一遍。
+`-init` 生成的示例配置里已经预填了上面这套 endpoint 与字段名（`wallet.enabled` 默认 `false`），
+你只需要填 cookie、把 `enabled` 改成 `true`、把 `pid` 改成后台某条支付宝通道的 ID。
 
 ### 9.4 微信：读微信窗口里的会话消息（Windows / macOS）
 

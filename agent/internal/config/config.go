@@ -251,7 +251,9 @@ func (c *Config) normalize() {
 		c.LogLevel = "info"
 	}
 	if c.Wallet.PollSec <= 0 {
-		c.Wallet.PollSec = 20
+		// 社区实测：支付宝交易查询接口 10 秒一次，几小时后会被判「频繁访问」封 24 小时。
+		// 默认 120 秒是安全值，不要为了"更快"往下调。
+		c.Wallet.PollSec = 120
 	}
 	if c.Wallet.Alipay != nil && c.Wallet.Alipay.Cookie == "" {
 		// 登录态是敏感信息，优先从环境变量注入
@@ -340,6 +342,24 @@ func Example() string {
 	c.Collect.Ports = []PortWatch{{Name: "payment-api", Host: "127.0.0.1", Port: 443}}
 	c.Alerts.Webhook = &Webhook{URL: "", Template: "generic", TimeoutMs: 5000}
 	c.AgentID = ""
+	// 到账确认默认关闭：需要先开通支付宝商家服务、拿 cookie、再 -wallet-probe 校准
+	c.Wallet = WalletCfg{
+		Enabled: false,
+		PID:     "1",
+		PollSec: 120,
+		Alipay: &wallet.AlipayBillCfg{
+			Endpoint:   "https://mbillexprod.alipay.com/enterprise/tradeListQuery.json",
+			Method:     "POST",
+			Body:       "queryType=1&pageSize=20&pageNo=1",
+			Referer:    "https://b.alipay.com/page/mbillexprod/trade/order/sold",
+			Parser:     "json",
+			ItemsPath:  "resultObj.detailList",
+			FieldTime:  "gmtCreate",
+			FieldMoney: "tradeAmount",
+			FieldTitle: "subject",
+			WindowMin:  15,
+		},
+	}
 	b, _ := json.MarshalIndent(c, "", "  ")
 	return string(b) + "\n"
 }

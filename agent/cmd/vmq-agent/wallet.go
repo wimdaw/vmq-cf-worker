@@ -158,46 +158,54 @@ func (w *walletRunner) snapshot() *protocol.Wallet {
 
 // runWalletProbe 是 `-wallet-probe` 的实现。
 //
-// 支付宝账单接口没有公开文档，所以这里不做任何猜测：原样打印服务端返回，
-// 再按当前配置试着解析一遍。使用者据此校准 items_path / field_* / pattern。
+// 不猜外部结构：把每个已配置来源的**原始数据**打出来，再附上按当前配置的解析结果。
+// 支付宝接口变了、微信窗口层级变了，跑一次就能看清并自助校准。
 func runWalletProbe(cfg *config.Config) {
-	if cfg.Wallet.Alipay == nil || cfg.Wallet.Alipay.Endpoint == "" {
-		fmt.Println("配置里没有 wallet.alipay.endpoint，无从探测。")
-		fmt.Println("请先在配置文件里填上账单接口地址与 cookie（或设 VMQ_ALIPAY_COOKIE 环境变量）。")
-		os.Exit(1)
+	type probeItem struct {
+		name string
+		dbg  wallet.Debugger
 	}
+	var items []probeItem
+	var errs []string
 
-	src, err := wallet.NewAlipayBill(*cfg.Wallet.Alipay, cfg.Timeout())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "构建账单源失败: %v\n", err)
-		os.Exit(1)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	fmt.Printf("探测 %s\n", cfg.Wallet.Alipay.Endpoint)
-	raw, items, perr := src.Probe(ctx)
-
-	fmt.Printf("\n--- 原始返回（前 2000 字节）---\n%s\n", truncate(string(raw), 2000))
-
-	if perr != nil {
-		fmt.Printf("\n--- 解析失败 ---\n%v\n", perr)
-		fmt.Println("\n提示：把上面的结构对照回来，填 items_path / field_money / field_time；")
-		fmt.Println("      如果是 HTML 页面，改用 \"parser\": \"regex\" 并用命名分组 money/time/title。")
-		os.Exit(2)
-	}
-
-	fmt.Printf("\n--- 按当前配置解析到 %d 条 ---\n", len(items))
-	for i, it := range items {
-		if i >= 10 {
-			fmt.Printf("  … 其余 %d 条省略\n", len(items)-10)
-			break
+	if cfg.Wallet.Alipay != nil && cfg.Wallet.Alipay.Endpoint != "" {
+		if src, err := wallet.NewAlipayBill(*cfg.Wallet.Alipay, cfg.Timeout()); err != nil {
+			errs = append(errs, "alipay: "+err.Error())
+		} else {
+			items = append(items, probeItem{"alipay-bill", src})
 		}
-		fmt.Printf("  %-12s %-10s %s\n", it.Money, it.TimeText, truncate(it.Title, 40))
+	}
+	if cfg.Wallet.WeChat != nil {
+		if src, err := wallet.NewWeChat(*cfg.Wallet.WeChat, cfg.Timeout()); err != nil {
+			errs = append(errs, "wechat: "+err.Error())
+		} else if d, ok := src.(wallet.Debugger); ok {
+			items = append(items, probeItem{src.Name(), d})
+		}
+	}
+
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "跳过 %s\n", e)
 	}
 	if len(items) == 0 {
-		fmt.Println("  一条都没解析出来：检查 items_path 是否指到数组，field_money 是否正确。")
+		fmt.Println("没有可探测的到账来源。请先填 wallet.alipay.endpoint 或 wallet.wechat。")
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	failed := false
+	for _, it := range items {
+		fmt.Printf("\n===== %s =====\n", it.name)
+		out, err := it.dbg.Debug(ctx)
+		fmt.Println(out)
+		if err != nil {
+			fmt.Printf("--- 出错 ---\n%v\n", err)
+			failed = true
+		}
+	}
+	if failed {
+		os.Exit(2)
 	}
 }
 

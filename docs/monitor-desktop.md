@@ -434,11 +434,13 @@ systemctl restart vmq-agent
 
 手机端靠 `NotificationListenerService`，这是 Android 独有的系统级能力。桌面三端：
 
-| 平台 | 能否读别的 App 的通知 | 说明 |
+| 平台 | 读系统通知 | 读微信窗口（真正该走的路） |
 | --- | --- | --- |
-| macOS | **能，但绕** | 通知落在 `$TMPDIR/../0/com.apple.notificationcenter/db2/db`（SQLite + binary plist），需要「完全磁盘访问」权限。已实现。 |
-| Linux | **能，且干净** | 桌面通知统一走 D-Bus `org.freedesktop.Notifications`，`dbus-monitor` 就能订阅。尚未实现（见 9.5）。 |
-| Windows | **基本不行** | 通知在 `wpndatabase.db`（SQLite），但 Windows 不自带 `sqlite3.exe`，纯 Go 无 CGO 读不了 SQLite；退而用 UI Automation 抓 Toast 窗口，对系统版本与主题极敏感。尚未实现。 |
+| Windows | 难：通知在 `wpndatabase.db`（SQLite），系统不自带 `sqlite3.exe`，纯 Go 无 CGO 读不了 | **UIAutomation**，PowerShell 直接调，已实现 |
+| macOS | 能：`$TMPDIR/../0/com.apple.notificationcenter/db2/db`，需「完全磁盘访问」 | **Accessibility API**，osascript 调，已实现 |
+| Linux | 能：D-Bus `org.freedesktop.Notifications` | AT-SPI，未实现（微信 Linux 版功能残缺） |
+
+但**不要走通知这条路**作为主路径 —— 到账是微信内部的服务号会话消息，用户一关通知就全瞎。详见 9.4。
 
 支付宝更特殊：**三端都没有可监听的通知**。所以它的做法不是「监听」，而是「轮询账单」——
 这条路纯 HTTP，与操作系统无关，因此三端代码完全一致。
@@ -452,8 +454,9 @@ systemctl restart vmq-agent
 
 | 来源 | 平台 | 原理 | 稳定性 |
 | --- | --- | --- | --- |
-| `alipay-bill` | **三端通用** | 带着登录态 cookie 轮询支付宝账单接口，解析出新增交易 | 中：接口可能变、cookie 会过期 |
-| `wechat-notify` | 仅 macOS | 读通知中心数据库，取微信到账通知的标题与正文 | 中高：系统结构稳定，微信文案会变 |
+| `alipay-bill` | **三端通用** | 带登录态 cookie 轮询支付宝账单接口，解析出新增交易 | 中：接口可能变、cookie 会过期 |
+| `wechat-window` | Windows / macOS | 读微信窗口里的会话文本（UIAutomation / Accessibility） | 中：与微信版本强耦合，升级可能失效 |
+| `wechat-notify` | 仅 macOS（兜底） | 读通知中心数据库 | 低：微信关通知即失效 |
 
 两者可以同时开。事件合并后统一去重、统一上报。
 
@@ -512,49 +515,77 @@ vmq-agent -wallet-probe -config /etc/vmq-agent/config.json
 
 `window_min` 是「只看多少分钟内的账单」，防止第一次跑就把历史全部重推一遍。
 
-### 9.4 微信通知（macOS）
+### 9.4 微信：读微信窗口里的会话消息（Windows / macOS）
+
+**这里有个关键认知**：微信到账不是系统通知，而是**微信内部的收款助手 / 收款商业版服务号会话消息**。
+V免签 官方支持的通知类型就写得很清楚：
+
+> 微信二维码收款推送通知 / 微信店员收款推送通知
+
+所以正确做法是读**微信窗口里的文本**，而不是等系统通知弹窗（后者不一定写通知中心、
+用户一关通知就全瞎）。业界成熟方案 `wxauto`（7k+ star）就是用 Windows UIAutomation
+遍历微信窗口控件树来读消息的 —— 不注入、不 hook、不逆向，行为等同真人操作。
+
+三端的能力对应：
+
+| 平台 | 机制 | 状态 |
+| --- | --- | --- |
+| Windows | UIAutomation（`UIAutomationClient`，PowerShell 直接调，无需 Python） | 已实现，**未在真机验证** |
+| macOS | Accessibility API（osascript + System Events） | 已实现，需「辅助功能」权限 |
+| Linux | AT-SPI over D-Bus | 未实现（微信 Linux 版功能残缺，先不做） |
+
+**前置条件（三端共同的硬约束，不是实现缺陷）**：
+
+1. 微信客户端已登录
+2. 在微信里**打开「微信收款助手」或「微信收款商业版」的会话**并保持（建议置顶）
+3. 给运行 agent 的进程授予 GUI 自动化权限：
+   - macOS：系统设置 → 隐私与安全性 → **辅助功能**（勾选终端或 LaunchDaemon，改完要重启进程）
+   - Windows：UIAutomation 要求本程序与微信**同一会话**——所以不要以 SYSTEM 服务方式跑，
+     用「计划任务 + 当前用户登录时运行」或直接前台跑
+
+配置：
 
 ```json
 "wallet": {
   "enabled": true,
   "pid": "8",
   "wechat": {
-    "apps": ["com.tencent.xinWeChat"],
+    "mode": "window",
     "keywords": ["收款", "到账", "收到转账", "微信支付"]
   }
 }
 ```
 
-前置条件：给运行 agent 的进程（终端 / LaunchDaemon）授予
-**系统设置 → 隐私与安全性 → 完全磁盘访问**，否则 `sqlite3` 打不开通知库。
+匹配逻辑：窗口里逐行扫描，命中关键词且能提取到合法金额的行才算一条到账；
+同一行只上报一次（按整行文本去重，历史消息不会重推）。
 
-匹配逻辑：标题或正文命中任一 keyword，且能提取到合法金额，才推一条。
-金额提取与手机端同一口径（取第一个两位小数、区间 0.01–100000），
-所以「收款 18.01 元，余额 1234.56 元」不会拿到余额。
+**店员收款同样覆盖**：微信收款商业版的店员收款，到账消息同样推给店员的「微信收款商业版」
+服务号会话，所以店员账号登录 PC 微信、打开该会话即可 —— 与店主模式走完全相同的路径。
 
-实测本机通知库能正常解出标题/正文（`title="任务已完成" body="适配项目至 EdgeOne…"`），
-但**没有真实微信到账通知可测**，微信侧的端到端验证需要你在有微信的 Mac 上跑一次。
+### 9.5 微信通知兜底（仅 macOS，`mode=notify`）
 
-### 9.5 Linux / Windows 的微信：目前明确不支持
+极少数情况下窗口读不到（微信最小化到托盘且不渲染消息列表），可以切到读通知中心：
 
-这两个平台的 `wallet.wechat` 会在启动时报错：
-
-```
-微信通知源当前仅 macOS 支持；Linux/Windows 请用支付宝账单源，或继续使用 Android 监控端
+```json
+"wechat": { "mode": "notify", "apps": ["com.tencent.xinWeChat"] }
 ```
 
-原因是路径不同、代价不同，不是「没写完」：
+它读的是 `$TMPDIR/../0/com.apple.notificationcenter/db2/db`（SQLite + binary plist），
+需要**完全磁盘访问**权限。这条路的局限是微信关掉系统通知就完全失效，所以只作兜底。
 
-- **Linux** 可以做：订阅 `dbus-monitor "member='Notify'"`，解析 GNOME / KDE 两种输出变体。
-  没有落地的原因是这两种变体我没有环境验证，不想交一段没跑过的解析代码。
-- **Windows** 难做：需要 SQLite 驱动（破坏零依赖），或 UI Automation 抓 Toast（极脆）。
+### 9.6 Linux 的微信：明确不支持
 
-这两端的到账确认目前有两条替代：**支付宝账单源**（三端通用）+ **手机端**（Android 通知监听本来就是全平台最强的）。
+``` 
+微信窗口读取当前支持 Windows / macOS；Linux 版微信功能残缺且无支付宝客户端，建议改用支付宝账单源
+```
 
-> 所以「三端功能一致」在这里的准确表述是：**系统与业务监控三端完全一致，到账确认按平台能力分档**。
-> 支付宝那条三端一样；微信那条只有 macOS 有，其余靠手机端兜底。
+Linux 桌面的微信是移植版、功能残缺，且用户量极小；AT-SPI 读控件树也没在真机验证过。
+不做，比交一段没跑过的代码更负责。Linux 的到账确认走**支付宝账单源**。
 
-### 9.6 和手机端一起用会不会重复上报
+> 所以「三端功能一致」的准确表述：**系统与业务监控三端完全一致**；
+> **支付宝账单三端完全一致**；**微信窗口读取 Windows + macOS 一致，Linux 不支持**。
+
+### 9.7 和手机端一起用会不会重复上报
 
 会，但不会错账。同一笔到账被手机和桌面各推一次时，服务端：
 
@@ -564,7 +595,7 @@ vmq-agent -wallet-probe -config /etc/vmq-agent/config.json
 所以重复推送只会多一条「未匹配到账」记录，金额不会被算两次。
 如果不想看到这条噪声，把手机端的该通道停用，或反过来只保留手机端。
 
-### 9.7 风险与限制
+### 9.8 风险与限制
 
 1. **Cookie 会过期**：支付宝登录态通常几天到几周，失效后账单接口会返回登录页或错误码，
    `wallet.last_error` 会出现在上报里，建议配一条规则监控它。
@@ -574,7 +605,7 @@ vmq-agent -wallet-probe -config /etc/vmq-agent/config.json
    生产请用常驻模式；`-once` 只适合首次验证。
 5. **只用你自己的账号**：这套功能读的是你自己的收款账户，不要用于他人账户。
 
-### 9.8 验证情况
+### 9.9 验证情况
 
 | 项目 | 结果 |
 | --- | --- |
@@ -584,4 +615,6 @@ vmq-agent -wallet-probe -config /etc/vmq-agent/config.json
 | 账单解析 | 用假接口验证 `items_path` 取值、时间窗口过滤、金额提取 |
 | 端到端 | 假账单 → 识别 18.01 → 签名 → `POST /appPush` → 服务端接受（`code:0`）→ 状态回填上报 |
 | macOS 通知 | bplist 解析器在**真实通知**上解出标题与正文 |
+| 微信窗口源 | macOS 上实跑：缺「辅助功能」权限时报出可操作的提示（-10004 已翻译成该去哪授权） |
+| 微信窗口（Windows） | **未在真机验证**：UIA 脚本按 wxauto 同款思路写（平铺 Text 控件，不依赖层级），需你跑一次 `-wallet-probe` 确认 |
 | 未验证 | 真实支付宝账单接口（无账号）、真实微信到账通知（本机无微信）、Linux/Windows 微信 |

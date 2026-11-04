@@ -58,7 +58,8 @@ type Source interface {
 
 // WeChatCfg 是微信通知源的配置。三平台字段一致，实现不同。
 type WeChatCfg struct {
-	// 通知所属 App 的标识：macOS 是 bundle id，Linux 是应用名
+	// Mode: window（默认，读微信窗口文本）/ notify（读 macOS 通知中心）
+	Mode     string   `json:"mode,omitempty"`
 	Apps     []string `json:"apps,omitempty"`
 	Keywords []string `json:"keywords,omitempty"`
 }
@@ -78,9 +79,22 @@ func (c *WeChatCfg) KeywordList() []string {
 	return []string{"收款", "到账", "收到转账", "微信支付"}
 }
 
-// NewWeChat 构造微信通知源，实现按平台分文件（darwin 已实现，其余返回明确错误）。
+// NewWeChat 按 mode 选择实现。
+//
+// 默认走 window：微信到账是**服务号会话消息**，不一定写系统通知中心，
+// 读窗口才是主路径（与 wxauto 的做法一致）。
+// notify 仅 macOS 可用，作为「窗口读不到但通知能读到」时的兜底。
 func NewWeChat(cfg WeChatCfg, timeout time.Duration) (Source, error) {
-	return newWeChat(cfg, timeout)
+	if cfg.Mode == "notify" {
+		return newWeChat(cfg, timeout)
+	}
+	return newWeChatWindow(cfg, timeout)
+}
+
+// Debugger 是「可以被 -wallet-probe 探测」的源。
+// 探测的价值在于：外部接口/窗口结构随时会变，能一次看清原始数据就能自助校准。
+type Debugger interface {
+	Debug(ctx context.Context) (string, error)
 }
 
 /* ------------------------------ 金额提取 ------------------------------ */

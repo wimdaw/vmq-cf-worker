@@ -349,6 +349,30 @@ type Preview struct {
 	TimeText string `json:"time_text"`
 }
 
+// Debug 实现 Debugger 接口，输出原始响应 + 解析摘要。
+func (b *AlipayBill) Debug(ctx context.Context) (string, error) {
+	raw, items, err := b.Probe(ctx)
+	var sb strings.Builder
+	sb.WriteString("--- 原始返回（前 2000 字节）---\n")
+	sb.WriteString(truncateStr(string(raw), 2000))
+	sb.WriteString("\n")
+	if err != nil {
+		return sb.String(), err
+	}
+	sb.WriteString(fmt.Sprintf("\n--- 按当前配置解析到 %d 条 ---\n", len(items)))
+	for i, it := range items {
+		if i >= 10 {
+			sb.WriteString(fmt.Sprintf("  … 其余 %d 条省略\n", len(items)-10))
+			break
+		}
+		sb.WriteString(fmt.Sprintf("  %-12s %-20s %s\n", it.Money, it.TimeText, truncateStr(it.Title, 40)))
+	}
+	if len(items) == 0 {
+		sb.WriteString("  一条都没解析出来：检查 items_path 是否指到数组，field_money 是否正确。\n")
+	}
+	return sb.String(), nil
+}
+
 // Probe 拉一次并解析，返回原始响应与解析结果。
 //
 // 为什么要有这个：支付宝账单接口没有公开文档，路径与结构随版本变化。
@@ -377,4 +401,11 @@ func (b *AlipayBill) Probe(ctx context.Context) (raw []byte, out []Preview, err 
 		})
 	}
 	return raw, out, nil
+}
+
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }

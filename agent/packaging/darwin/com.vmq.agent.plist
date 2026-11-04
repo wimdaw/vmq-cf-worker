@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd 描述文件模板。__BIN__ / __CFG__ / __LOG__ 由 install.sh 替换。
+
+  装成 LaunchDaemon（/Library/LaunchDaemons）：开机即跑，不依赖用户登录，
+  与 Linux 的 systemd、Windows 的计划任务定位一致 —— 这是监控端该有的形态。
+
+  代价：Daemon 没有图形会话，alerts.desktop 的弹窗不会出现（osascript 会报错，
+  agent 按 debug 记录后继续）。要在本机看到弹窗，改用 LaunchAgent 形态
+  （install.sh --user），或把 alerts.webhook 配起来。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.vmq.agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BIN__</string>
+        <string>-config</string>
+        <string>__CFG__</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 任何原因退出都拉起；ThrottleInterval 防止疯狂重启打满日志 -->
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>__LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG__</string>
+</dict>
+</plist>

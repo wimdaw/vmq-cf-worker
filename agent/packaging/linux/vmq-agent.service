@@ -1,0 +1,40 @@
+[Unit]
+Description=V免签 桌面监控端（系统 + 支付业务状态采集与告警）
+Documentation=https://github.com/im-webb/vmq-cf-worker/blob/edgeone/docs/monitor-desktop.md
+# 网络就绪后再启动：采集的第一轮就要访问服务端，太早起会白报一次「服务不可达」
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/vmq-agent -config /etc/vmq-agent/config.json
+
+# 监控程序本身的可用性优先：任何原因退出都拉起
+Restart=always
+RestartSec=5s
+
+# 令牌不要写进 unit 文件（会被 systemctl cat 看到）。
+# 需要注入时用 EnvironmentFile，并 chmod 600：
+# EnvironmentFile=-/etc/vmq-agent/env
+
+# 以独立用户运行，降低被入侵后的影响面；采集系统指标不需要 root。
+# 若需要读取受保护目录的磁盘容量，可改用 root 或给该用户加 CapabilityBoundingSet。
+User=vmq-agent
+Group=vmq-agent
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+# 由 systemd 创建并授权这两个目录：
+#   /var/lib/vmq-agent  运行期数据
+#   /var/log/vmq-agent  配了 alerts.log_file 时的落盘位置
+StateDirectory=vmq-agent
+LogDirectory=vmq-agent
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vmq-agent
+
+[Install]
+WantedBy=multi-user.target

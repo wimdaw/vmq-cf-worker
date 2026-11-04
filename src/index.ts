@@ -62,13 +62,13 @@ export default {
     // 构建产物目录本身不对外：知道 /console 就能打开登录页的话，
     // 「别名藏后台」这层遮挡就白做了。统一跳回别名入口。
     if (path === '/console' || path === '/console/index.html') {
-      return Response.redirect(new URL(`/${alias}`, url).toString(), 302);
+      return new Response(null, { status: 302, headers: { Location: `/${alias}${url.search}` } });
     }
 
     // 若配置了自定义别名（且不为 admin），访问默认 /admin 统一重定向到别名入口
     if (alias && alias !== 'admin' && (path === '/admin' || path.startsWith('/admin/'))) {
       const rest = path.slice('/admin'.length);
-      return Response.redirect(new URL(`/${alias}${rest}`, url).toString(), 302);
+      return new Response(null, { status: 302, headers: { Location: `/${alias}${rest}${url.search}` } });
     }
 
     // 后台的所有路径都返回 SPA 外壳：前端用 hash 路由，路径本身不带语义。

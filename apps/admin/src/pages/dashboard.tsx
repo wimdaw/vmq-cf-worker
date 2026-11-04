@@ -76,34 +76,26 @@ function MonitorBadge({ state, detail }: { state: MonitorState; detail?: string 
   );
 }
 
-/** 关于本项目：静态信息，写死在前端（不占接口） */const ABOUT: Array<{ label: string; value: React.ReactNode }> = [
-  { label: '项目名称', value: 'V免签 · Cloudflare Workers 版' },
+/** 关于本项目：静态信息，写死在前端（不占接口） */
+const ABOUT: Array<{ label: string; value: React.ReactNode }> = [
+  { label: '项目名称', value: 'V免签 · 腾讯云 EdgeOne Pages 版' },
   {
     label: '仓库地址',
     value: (
       <a
         className="text-primary hover:underline"
-        href="https://github.com/im-webb/vmq-cf-worker"
+        href="https://github.com/wimdaw/vmq-cf-worker"
         target="_blank"
         rel="noreferrer"
       >
-        github.com/im-webb/vmq-cf-worker
+        github.com/wimdaw/vmq-cf-worker (edgeone)
       </a>
     ),
   },
   { label: '开源协议', value: 'MIT' },
   {
-    label: '问题反馈',
-    value: (
-      <a
-        className="text-primary hover:underline"
-        href="https://github.com/im-webb/vmq-cf-worker/issues"
-        target="_blank"
-        rel="noreferrer"
-      >
-        GitHub Issues
-      </a>
-    ),
+    label: '运行架构',
+    value: 'EdgeOne Cloud Functions (Node.js) + Blob 强一致存储',
   },
   { label: '免责声明', value: '仅供个人学习与自用，请勿用于商业用途' },
 ];

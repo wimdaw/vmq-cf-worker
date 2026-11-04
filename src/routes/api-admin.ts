@@ -160,10 +160,10 @@ export async function handleAdminApi(req: Request, env: Env, sub: string): Promi
 
     return reply(
       okData({
-        edition: `${cfg['edition'] ?? 'v1.0.0'}（Cloudflare 版）`,
+        edition: `${cfg['edition'] ?? 'v1.0.0'}（EdgeOne Pages 版）`,
         siteAddress: siteHost(cfg, req),
-        runPlatform: 'Cloudflare Workers · workerd',
-        database: 'D1 (SQLite) · APAC',
+        runPlatform: 'Tencent Cloud EdgeOne · Cloud Functions',
+        database: 'EdgeOne Pages Blob (强一致存储)',
         // 只给「细节」，状态词由前端的徽标承担（否则会出现「监控端在线 · 在线 · 32 秒前心跳」的重复）
         monitor:
           age < 0
@@ -180,7 +180,7 @@ export async function handleAdminApi(req: Request, env: Env, sub: string): Promi
         uploadLimit: `${MAX_UPLOAD_LABEL} · ${UPLOAD_MIME_LABEL}`,
         notifyJudge: notifyJudgeLabel(cfg['notify_success_body'] ?? '@json:code=1'),
         notifyRetry: '8 次 · 跨度约 20 小时',
-        quota: '以 Cloudflare 控制台为准',
+        quota: '以腾讯云 EdgeOne 控制台为准',
       })
     );
   }

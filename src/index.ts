@@ -65,6 +65,12 @@ export default {
       return Response.redirect(new URL(`/${alias}`, url).toString(), 302);
     }
 
+    // 若配置了自定义别名（且不为 admin），访问默认 /admin 统一重定向到别名入口
+    if (alias && alias !== 'admin' && (path === '/admin' || path.startsWith('/admin/'))) {
+      const rest = path.slice('/admin'.length);
+      return Response.redirect(new URL(`/${alias}${rest}`, url).toString(), 302);
+    }
+
     // 后台的所有路径都返回 SPA 外壳：前端用 hash 路由，路径本身不带语义。
     // 旧后台地址（/别名/system.passage/index 之类）同样落到 SPA 首页，
     // 不再渲染第三方 layui 模板 —— 旧页面已随模板一并移除。

@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wimdaw/vmq-cf-worker/agent/internal/wallet"
 )
 
 // Rule 一条阈值规则。direction=above 表示「越大越糟」（CPU、磁盘），
@@ -66,6 +68,20 @@ type DesktopAlert struct {
 	OnlyOnCrit bool `json:"only_on_crit,omitempty"`
 }
 
+// WalletCfg 是桌面端「直接确认到账」的配置。
+//
+// 与手机端的分工：手机监听通知栏，桌面轮询账单。两者产出的事件
+// 走同一个 /appPush，所以服务端不需要区分来源。
+type WalletCfg struct {
+	Enabled bool   `json:"enabled"`
+	PID     string `json:"pid,omitempty"`      // 通道 ID，对应后台某条支付宝通道
+	PollSec int    `json:"poll_sec,omitempty"` // 轮询间隔，默认 20 秒
+	// 支付宝账单源。不配则不启用该源。
+	Alipay *wallet.AlipayBillCfg `json:"alipay,omitempty"`
+	// 微信通知源（当前仅 macOS 实现）。
+	WeChat *wallet.WeChatCfg `json:"wechat,omitempty"`
+}
+
 type Alerts struct {
 	CooldownSec int           `json:"cooldown_sec,omitempty"` // 同一规则同一级别的最小重发间隔
 	Webhook     *Webhook      `json:"webhook,omitempty"`
@@ -81,6 +97,7 @@ type Config struct {
 	Collect     Collect   `json:"collect"`
 	Rules       []Rule    `json:"rules"`
 	Alerts      Alerts    `json:"alerts"`
+	Wallet      WalletCfg `json:"wallet"`
 	LogLevel    string    `json:"log_level,omitempty"`
 	// 数据目录：放偏移量/状态等本地文件，默认与配置文件同目录
 	DataDir string `json:"data_dir,omitempty"`
@@ -233,6 +250,13 @@ func (c *Config) normalize() {
 	if c.LogLevel == "" {
 		c.LogLevel = "info"
 	}
+	if c.Wallet.PollSec <= 0 {
+		c.Wallet.PollSec = 20
+	}
+	if c.Wallet.Alipay != nil && c.Wallet.Alipay.Cookie == "" {
+		// 登录态是敏感信息，优先从环境变量注入
+		c.Wallet.Alipay.Cookie = os.Getenv("VMQ_ALIPAY_COOKIE")
+	}
 	if c.DataDir == "" {
 		c.DataDir = DefaultDataDir(c.Path)
 	}
@@ -278,6 +302,14 @@ func (c *Config) Validate() error {
 		// 空串等价于 above（normalize 会补上），这里只拦真正写错的
 		if r.Direction != "" && r.Direction != "above" && r.Direction != "below" {
 			return fmt.Errorf("规则 %s 的 direction 只能是 above/below", r.Metric)
+		}
+	}
+	if c.Wallet.Enabled {
+		if c.Wallet.PID == "" {
+			return errors.New("wallet.enabled=true 时必须配 wallet.pid（通道 ID），否则无法上报")
+		}
+		if (c.Wallet.Alipay == nil || c.Wallet.Alipay.Endpoint == "") && c.Wallet.WeChat == nil {
+			return errors.New("wallet.enabled=true 但未配置任何到账来源（wallet.alipay / wallet.wechat）")
 		}
 	}
 	if w := c.Alerts.Webhook; w != nil && w.URL != "" {

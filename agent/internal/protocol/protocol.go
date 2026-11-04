@@ -24,9 +24,25 @@ type Report struct {
 	Interval int      `json:"interval"` // 期望的采集间隔（秒），服务端据此判断数据是否过期
 	System   System   `json:"system"`
 	Business Business `json:"business"`
-	Metrics  Metrics  `json:"metrics"` // 规则引擎实际消费的扁平指标，同名同口径
+	Metrics  Metrics  `json:"metrics"`          // 规则引擎实际消费的扁平指标，同名同口径
+	Wallet   *Wallet  `json:"wallet,omitempty"` // 到账事件源（账单轮询等）的运行状态
 	Alerts   []Alert  `json:"alerts,omitempty"`
 	Errors   []string `json:"errors,omitempty"` // 采集过程中的非致命错误，便于远程排查
+}
+
+// Wallet 是桌面端「直接确认到账」这条链路的运行状态。
+//
+// 手机端靠通知栏，桌面端靠账单轮询 —— 两条路产出的事件最终都走 /appPush，
+// 但运维需要知道「桌面这条链路到底跑没跑起来」，所以单独报一段。
+type Wallet struct {
+	Enabled     bool     `json:"enabled"`
+	Sources     []string `json:"sources,omitempty"`
+	PushedTotal int64    `json:"pushed_total"` // 启动以来成功上报的条数
+	LastEventTS int64    `json:"last_event_ts,omitempty"`
+	LastMoney   string   `json:"last_money,omitempty"`
+	LastMsg     string   `json:"last_msg,omitempty"` // 服务端返回的 msg，例如「无匹配订单，已记录」
+	LastError   string   `json:"last_error,omitempty"`
+	LastPollTS  int64    `json:"last_poll_ts,omitempty"`
 }
 
 // Host 是这台机器的身份信息。三个平台都必须填满。

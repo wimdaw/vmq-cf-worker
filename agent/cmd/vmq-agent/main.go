@@ -43,6 +43,7 @@ func main() {
 		check   = flag.Bool("check", false, "校验配置并打印解析结果后退出")
 		initCfg = flag.Bool("init", false, "生成示例配置文件")
 		printJ  = flag.Bool("print", false, "把一次采集结果输出到 stdout（不告警、不上报）")
+		wProbe  = flag.Bool("wallet-probe", false, "用当前配置拉一次账单并打印原始返回（校准 items_path / pattern 用）")
 		showV   = flag.Bool("version", false, "打印版本")
 	)
 	flag.Parse()
@@ -82,6 +83,11 @@ func main() {
 	}
 	defer log.Close()
 
+	if *wProbe {
+		runWalletProbe(cfg)
+		return
+	}
+
 	if *check {
 		printCheck(cfg, log)
 		return
@@ -92,9 +98,17 @@ func main() {
 	dispatcher := alert.New(cfg.Alerts, log)
 	reporter := report.New(cfg, log)
 
+	wr, err := newWalletRunner(cfg, log)
+	if err != nil {
+		fatal("账单监控配置错误: %v", err)
+	}
+
 	// 单次模式：给外部调度器（cron / 任务计划）用，行为与常驻模式的一轮完全一致
 	if *once || *printJ {
-		rep := cycle(cfg, engine, dispatcher, reporter, log, !*printJ)
+		if *once && wr != nil {
+			wr.tick(context.Background())
+		}
+		rep := cycle(cfg, engine, dispatcher, reporter, wr, log, !*printJ)
 		if *printJ {
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
@@ -110,17 +124,21 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if wr != nil {
+		go wr.run(ctx)
+	}
+
 	ticker := time.NewTicker(time.Duration(cfg.IntervalSec) * time.Second)
 	defer ticker.Stop()
 
-	cycle(cfg, engine, dispatcher, reporter, log, true) // 启动后立刻采一次，不等第一个 tick
+	cycle(cfg, engine, dispatcher, reporter, wr, log, true) // 启动后立刻采一次，不等第一个 tick
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infof("收到退出信号，停止采集")
 			return
 		case <-ticker.C:
-			cycle(cfg, engine, dispatcher, reporter, log, true)
+			cycle(cfg, engine, dispatcher, reporter, wr, log, true)
 		}
 	}
 }
@@ -128,8 +146,9 @@ func main() {
 // cycle 是「采集 → 判定 → 告警 → 上报」的一轮，常驻与单次模式共用。
 // 任何一步失败都不会中断后续步骤：告警发不出去也要上报，
 // 上报不上去也要把结果打在当时可用的日志里。
-func cycle(cfg *config.Config, engine *rules.Engine, dispatcher *alert.Dispatcher, reporter *report.Client, log *logging.Logger, doNotify bool) protocol.Report {
+func cycle(cfg *config.Config, engine *rules.Engine, dispatcher *alert.Dispatcher, reporter *report.Client, wr *walletRunner, log *logging.Logger, doNotify bool) protocol.Report {
 	rep := collect.Gather(cfg)
+	rep.Wallet = wr.snapshot()
 
 	alerts := engine.Evaluate(rep.Metrics, time.Now())
 	rep.Alerts = alerts

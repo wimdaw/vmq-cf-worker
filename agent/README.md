@@ -11,6 +11,7 @@ agent/
 │   ├── collect/          采集：三平台原子操作 + 共用汇总
 │   ├── rules/            规则引擎：阈值 / 持续时长 / 冷却 / 恢复
 │   ├── alert/            webhook（企微/钉钉/飞书/通用）+ 三平台桌面通知 + 日志
+│   ├── wallet/           到账事件源：支付宝账单轮询 + macOS 微信通知
 │   ├── report/           POST /api/agent/report
 │   └── logging/
 ├── packaging/            systemd / launchd / 计划任务 的安装物
@@ -24,6 +25,7 @@ agent/
 ./dist/vmq-agent-$(go env GOOS)-$(go env GOARCH) -init    # 生成示例配置
 ./dist/vmq-agent-... -check                               # 校验配置
 ./dist/vmq-agent-... -once                                # 跑一轮就退出（推荐先这么试）
+./dist/vmq-agent-... -wallet-probe                        # 探测账单接口，校准解析配置
 ./dist/vmq-agent-...                                      # 常驻
 ```
 

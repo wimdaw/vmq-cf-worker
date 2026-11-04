@@ -67,10 +67,9 @@ function copyDir(from, to) {
 }
 
 copyDir(p('public/static'), p('dist/static'));
-copyDir(p('public/site/assets'), p('dist/site/assets'));
-copyDir(p('public/console/assets'), p('dist/console/assets'));
+copyDir(p('public/site'), p('dist/site'));
+copyDir(p('public/console'), p('dist/console'));
 if (existsSync(p('public/favicon.ico'))) cpSync(p('public/favicon.ico'), p('dist/favicon.ico'));
-if (existsSync(p('public/site/favicon.svg'))) cpSync(p('public/site/favicon.svg'), p('dist/favicon.svg'));
 
 /* --------------------------- 3) 打包函数 --------------------------- */
 

@@ -149,6 +149,9 @@ func main() {
 func cycle(cfg *config.Config, engine *rules.Engine, dispatcher *alert.Dispatcher, reporter *report.Client, wr *walletRunner, log *logging.Logger, doNotify bool) protocol.Report {
 	rep := collect.Gather(cfg)
 	rep.Wallet = wr.snapshot()
+	for k, v := range wr.metrics(rep.TS) {
+		rep.Metrics[k] = v
+	}
 
 	alerts := engine.Evaluate(rep.Metrics, time.Now())
 	rep.Alerts = alerts

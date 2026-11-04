@@ -152,6 +152,10 @@ func DefaultRules() []Rule {
 		{Metric: "passages", Warn: 0.5, Crit: 0, ForSec: 300, Direction: "below", Note: "没有可用收款通道"},
 		{Metric: "proc_missing", Warn: 1, Crit: 9999, ForSec: 180, Note: "点名的进程没在跑"},
 		{Metric: "port_down", Warn: 1, Crit: 9999, ForSec: 120, Note: "点名的端口连不上"},
+		// 到账链路自身是否还活着：窗口读不到、cookie 过期、接口被封都会体现在这两条上。
+		// 没启用 wallet 的实例不会产生这两个指标，规则自动跳过。
+		{Metric: "wallet_poll_age_sec", Warn: 300, Crit: 900, ForSec: 0, Note: "到账轮询停滞"},
+		{Metric: "wallet_error_streak", Warn: 3, Crit: 10, ForSec: 0, Note: "到账来源连续失败"},
 	}
 }
 

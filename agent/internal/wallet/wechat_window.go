@@ -34,6 +34,9 @@ type WeChatWindow struct {
 	dedup     *Deduper
 	procName  string
 	scriptTmp string
+	// primed 表示已经建立基线。首轮只登记已有消息、不产生事件 ——
+	// 否则一启动就会把会话里的历史到账全部重推一遍，服务端全是「无匹配订单」。
+	primed bool
 }
 
 func newWeChatWindow(cfg WeChatCfg, timeout time.Duration) (Source, error) {
@@ -86,7 +89,12 @@ func (w *WeChatWindow) Poll(ctx context.Context) ([]Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	return w.extract(text), nil
+	events := w.extract(text)
+	if !w.primed {
+		// 读到窗口内容即认为基线建立（即使当时一条匹配都没有）
+		w.primed = true
+	}
+	return events, nil
 }
 
 // extract 从窗口文本里挑出到账消息。
@@ -116,7 +124,13 @@ func (w *WeChatWindow) extract(text string) []Event {
 		if money == "" {
 			continue
 		}
-		if w.dedup.SeenBefore("line|" + line) {
+		key := "line|" + line
+		first := w.dedup.SeenBefore(key)
+		if first {
+			continue
+		}
+		if !w.primed {
+			// 首轮：匹配到的行只登记为「已见」，不作为新到账。
 			continue
 		}
 		out = append(out, Event{

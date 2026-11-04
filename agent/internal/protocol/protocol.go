@@ -42,7 +42,9 @@ type Wallet struct {
 	LastMoney   string   `json:"last_money,omitempty"`
 	LastMsg     string   `json:"last_msg,omitempty"` // 服务端返回的 msg，例如「无匹配订单，已记录」
 	LastError   string   `json:"last_error,omitempty"`
-	LastPollTS  int64    `json:"last_poll_ts,omitempty"`
+	LastPollTS  int64    `json:"last_poll_ts,omitempty"` // 最后一次尝试轮询
+	LastOKTS    int64    `json:"last_ok_ts,omitempty"`   // 最后一次成功轮询
+	ErrStreak   int      `json:"err_streak,omitempty"`   // 连续失败次数
 }
 
 // Host 是这台机器的身份信息。三个平台都必须填满。
@@ -180,6 +182,11 @@ const (
 	MetricNotifyFailed      = "notify_failed"  // orders["2"]
 	MetricExpiredOrders     = "expired_orders" // orders["3"]
 	MetricTotalOrders       = "total_orders"
+
+	// 到账链路的自身健康度。这两个指标只在 wallet.enabled 时出现，
+	// 没启用的实例不会因为缺失而被规则误判（规则引擎对缺失指标直接跳过）。
+	MetricWalletPollAge   = "wallet_poll_age_sec" // 距上次成功轮询的秒数
+	MetricWalletErrStreak = "wallet_error_streak" // 连续失败次数
 )
 
 // Alert 是一条已经过状态机判定的告警（或恢复通知）。

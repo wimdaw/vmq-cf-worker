@@ -116,6 +116,10 @@ func (w *walletRunner) tick(ctx context.Context) {
 	w.st.LastPollTS = time.Now().Unix()
 	if firstErr == nil {
 		w.st.LastError = ""
+		w.st.LastOKTS = w.st.LastPollTS
+		w.st.ErrStreak = 0
+	} else {
+		w.st.ErrStreak++
 	}
 	w.mu.Unlock()
 
@@ -143,6 +147,36 @@ func (w *walletRunner) setErr(err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.st.LastError = err.Error()
+}
+
+// metrics 把到账链路的健康度并进指标表，交给规则引擎判定。
+//
+// 这两个值回答的是「到账这条路还通不通」：
+// 轮询停滞（窗口读不到 / cookie 过期 / 接口被封）和连续失败次数。
+// 只看「有没有到账」会误报 —— 没人付款时本来就没有到账。
+func (w *walletRunner) metrics(now int64) map[string]float64 {
+	if w == nil {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	out := map[string]float64{
+		protocol.MetricWalletErrStreak: float64(w.st.ErrStreak),
+	}
+	// 还没成功过时用启动后的第一次轮询时间兜底，避免一启动就报「停滞」
+	ref := w.st.LastOKTS
+	if ref == 0 {
+		ref = w.st.LastPollTS
+	}
+	if ref > 0 {
+		age := now - ref
+		if age < 0 {
+			age = 0
+		}
+		out[protocol.MetricWalletPollAge] = float64(age)
+	}
+	return out
 }
 
 // snapshot 供上报使用；没有启用时返回 nil（omitempty 会把整段省略）。

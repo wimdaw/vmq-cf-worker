@@ -233,7 +233,25 @@ pnpm eo:build && pnpm eo:smoke   # 端到端 31 项断言，跑在内存库上
 「连查 6 次」和「重复推送」这两条是关键：前者验证 Blob 强一致读真的绕过了 CDN，
 后者验证没有事务时靠「金额池释放 + 状态条件校验」也能做到幂等。
 
-## 六、本地开发小抄
+## 六、配套监控端
+
+服务端部署完还需要一个 Android App 去监听手机的通知栏，才能把到账结果推上来。
+它在本仓库的 `monitor-android/` 下（独立 Gradle 工程，不参与 Node 构建）：
+
+```bash
+cd monitor-android
+./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
+```
+
+装到手机后授予「通知使用权」+ 加入电池白名单，再扫后台「通道管理 → APP扫码配置」
+给出的二维码即可绑定。
+
+它只依赖本服务的两条接口 `POST /appHeart` 与 `POST /appPush`（签名分别是
+`md5(t+pid+key)` 与 `md5(type+price+t+pid+key)`，成功码是 **0**），
+这两条在 EdgeOne 版里的实现与 Cloudflare 版完全一致，App 无需任何改动。
+完整说明见 [`docs/monitor-android.md`](./monitor-android.md)。
+
+## 七、本地开发小抄
 
 ```bash
 pnpm eo:build && pnpm eo:dev     # 构建 + 起本地服务（内存库）

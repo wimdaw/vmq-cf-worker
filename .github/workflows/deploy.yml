@@ -43,7 +43,7 @@ jobs:
           fi
           npx edgeone makers deploy \
             -t "$EDGEONE_TOKEN" \
-            -n vmq \
+            -n vmq-cf-worker \
             -a overseas \
             --json \
             --skip-ai-gateway-sync

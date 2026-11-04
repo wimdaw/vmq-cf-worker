@@ -69,6 +69,8 @@ func (w *WeChatWindow) Name() string { return "wechat-window" }
 
 func (w *WeChatWindow) Platform() int { return TypeWeChat }
 
+func (w *WeChatWindow) PID() string { return w.cfg.PID }
+
 func (w *WeChatWindow) selfCheck() error {
 	switch runtime.GOOS {
 	case "windows":

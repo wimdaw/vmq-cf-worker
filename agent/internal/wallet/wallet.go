@@ -53,11 +53,16 @@ type Source interface {
 	Name() string
 	// Platform 返回该源对应的支付平台类型（TypeWeChat / TypeAlipay）
 	Platform() int
+	// PID 返回该源使用的通道 ID；返回空串表示用全局默认。
+	// 微信与支付宝是两个通道，共用一个 pid 会把微信到账记到支付宝通道上。
+	PID() string
 	Poll(ctx context.Context) ([]Event, error)
 }
 
 // WeChatCfg 是微信通知源的配置。三平台字段一致，实现不同。
 type WeChatCfg struct {
+	// PID 是上报用的通道 ID（微信通道）。留空则用 wallet.pid。
+	PID string `json:"pid,omitempty"`
 	// Mode: window（默认，读微信窗口文本）/ notify（读 macOS 通知中心）
 	Mode     string   `json:"mode,omitempty"`
 	Apps     []string `json:"apps,omitempty"`

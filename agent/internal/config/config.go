@@ -311,8 +311,16 @@ func (c *Config) Validate() error {
 		}
 	}
 	if c.Wallet.Enabled {
-		if c.Wallet.PID == "" {
-			return errors.New("wallet.enabled=true 时必须配 wallet.pid（通道 ID），否则无法上报")
+		// pid 允许在源上单独配（微信与支付宝是两个通道），这里只拦「一个都没有」的情况
+		hasPid := c.Wallet.PID != ""
+		if !hasPid && c.Wallet.Alipay != nil {
+			hasPid = c.Wallet.Alipay.PID != ""
+		}
+		if !hasPid && c.Wallet.WeChat != nil {
+			hasPid = c.Wallet.WeChat.PID != ""
+		}
+		if !hasPid {
+			return errors.New("wallet.enabled=true 但没有任何通道 ID：配 wallet.pid，或在各来源里单独配 pid")
 		}
 		if (c.Wallet.Alipay == nil || c.Wallet.Alipay.Endpoint == "") && c.Wallet.WeChat == nil {
 			return errors.New("wallet.enabled=true 但未配置任何到账来源（wallet.alipay / wallet.wechat）")

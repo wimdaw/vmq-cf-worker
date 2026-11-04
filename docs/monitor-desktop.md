@@ -241,6 +241,7 @@ vmq-agent -check           # 校验并打印解析后的配置（令牌打码）
 | 字段 | 说明 |
 | --- | --- |
 | `agent_id` | 不填则自动派生为 `<主机名>-<平台>`；上报按它覆盖式落库，**同一台机器别配两个 id** |
+| `wallet.pid` | 全局兜底通道 ID；微信与支付宝是两个通道，**建议在各自来源里单独配** |
 | `interval_sec` | 采集间隔，最小 5 秒 |
 | `server.base_url` | 服务端地址。**默认强制 https**，回环地址放行；内网确需 http 时显式设 `allow_insecure_http: true` |
 | `server.token` | 与后台「通讯密钥」一致（也可单独在后台配 `agent_token` 隔离） |
@@ -541,8 +542,8 @@ V免签 官方支持的通知类型就写得很清楚：
 ```json
 "wallet": {
   "enabled": true,
-  "pid": "8",
   "wechat": {
+    "pid": "8",            // 后台微信通道的 ID
     "mode": "window",
     "keywords": ["收款", "到账", "收到转账", "微信支付"]
   }

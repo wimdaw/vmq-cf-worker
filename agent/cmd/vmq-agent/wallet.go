@@ -13,15 +13,18 @@ import (
 	"github.com/wimdaw/vmq-cf-worker/agent/internal/wallet"
 )
 
-// walletRunner 把「账单轮询 → 去重 → 上报 /appPush」这条链路跑起来。
+// walletRunner 把「拉取 → 去重 → 上报 /appPush」这条链路跑起来。
 //
-// 它是独立于采集循环的 goroutine：账单接口慢或挂掉，不应该影响
+// 它是独立于采集循环的 goroutine：到账源慢或挂掉，不应该影响
 // CPU/内存这些系统指标的采集与告警 —— 这恰恰是最需要看到现场的时候。
+//
+// 每个源可以有自己的通道 ID：微信与支付宝是两个通道（type 不同），
+// 共用一个 pid 会把微信到账记到支付宝通道上，金额池和统计都会错。
 type walletRunner struct {
-	srcs []wallet.Source
-	push *wallet.Pusher
-	log  *logging.Logger
-	poll time.Duration
+	srcs    []wallet.Source
+	pushers map[string]*wallet.Pusher // pid → pusher
+	log     *logging.Logger
+	poll    time.Duration
 
 	mu sync.Mutex
 	st protocol.Wallet
@@ -30,9 +33,6 @@ type walletRunner struct {
 func newWalletRunner(cfg *config.Config, log *logging.Logger) (*walletRunner, error) {
 	if !cfg.Wallet.Enabled {
 		return nil, nil
-	}
-	if cfg.Wallet.Alipay == nil {
-		return nil, fmt.Errorf("wallet.enabled=true 但没有可用的账单源")
 	}
 
 	var srcs []wallet.Source
@@ -53,20 +53,39 @@ func newWalletRunner(cfg *config.Config, log *logging.Logger) (*walletRunner, er
 	if len(srcs) == 0 {
 		return nil, fmt.Errorf("没有可用的到账来源")
 	}
+
+	pushers := map[string]*wallet.Pusher{}
+	var pids []string
+	for _, s := range srcs {
+		pid := s.PID()
+		if pid == "" {
+			pid = cfg.Wallet.PID
+		}
+		if pid == "" {
+			return nil, fmt.Errorf("到账来源 %s 没有通道 ID（配 wallet.pid 或该源自己的 pid）", s.Name())
+		}
+		if _, ok := pushers[pid]; !ok {
+			pushers[pid] = wallet.NewPusher(cfg.Server.BaseURL, cfg.Server.Token, pid, cfg.Timeout())
+			pids = append(pids, pid)
+		}
+	}
+
+	poll := time.Duration(cfg.Wallet.PollSec) * time.Second
+	if poll < 30*time.Second {
+		// 低于 30 秒既无必要也危险：支付宝交易查询接口 10 秒一次会被封 24 小时
+		poll = 30 * time.Second
+	}
+
 	names := make([]string, 0, len(srcs))
 	for _, s := range srcs {
 		names = append(names, s.Name())
 	}
-	poll := time.Duration(cfg.Wallet.PollSec) * time.Second
-	if poll < 10*time.Second {
-		poll = 10 * time.Second // 太频繁会触发风控，也不会更快
-	}
 
 	return &walletRunner{
-		srcs: srcs,
-		push: wallet.NewPusher(cfg.Server.BaseURL, cfg.Server.Token, cfg.Wallet.PID, cfg.Timeout()),
-		log:  log,
-		poll: poll,
+		srcs:    srcs,
+		pushers: pushers,
+		log:     log,
+		poll:    poll,
 		st: protocol.Wallet{
 			Enabled: true,
 			Sources: names,
@@ -75,7 +94,7 @@ func newWalletRunner(cfg *config.Config, log *logging.Logger) (*walletRunner, er
 }
 
 func (w *walletRunner) run(ctx context.Context) {
-	w.log.Infof("到账监控已启动：源=%v 通道=%s 间隔=%s", w.st.Sources, w.push.PID, w.poll)
+	w.log.Infof("到账监控已启动：源=%v 通道=%v 间隔=%s", w.st.Sources, w.pidList(), w.poll)
 
 	ticker := time.NewTicker(w.poll)
 	defer ticker.Stop()
@@ -91,25 +110,46 @@ func (w *walletRunner) run(ctx context.Context) {
 	}
 }
 
+func (w *walletRunner) pidList() []string {
+	out := make([]string, 0, len(w.pushers))
+	for pid := range w.pushers {
+		out = append(out, pid)
+	}
+	return out
+}
+
 func (w *walletRunner) tick(ctx context.Context) {
-	pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	pollCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	var events []wallet.Event
 	var firstErr error
 	for _, src := range w.srcs {
-		evs, err := src.Poll(pollCtx)
+		events, err := src.Poll(pollCtx)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("%s: %w", src.Name(), err)
 			}
+			w.log.Warnf("到账来源 %s 拉取失败: %v", src.Name(), err)
 			continue
 		}
-		events = append(events, evs...)
-	}
-	if firstErr != nil {
-		w.setErr(firstErr)
-		w.log.Warnf("到账来源拉取失败: %v", firstErr)
+		p := w.pusherFor(src)
+		for _, ev := range events {
+			msg, err := p.Push(ctx, ev)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("%s 上报失败: %w", src.Name(), err)
+				}
+				w.log.Errorf("上报到账失败 %s 元: %v", ev.Money, err)
+				continue
+			}
+			w.mu.Lock()
+			w.st.PushedTotal++
+			w.st.LastEventTS = ev.TS
+			w.st.LastMoney = ev.Money
+			w.st.LastMsg = msg
+			w.mu.Unlock()
+			w.log.Infof("识别到账 %s 元（%s → 通道 %s）→ %s", ev.Money, ev.Source, p.PID, msg)
+		}
 	}
 
 	w.mu.Lock()
@@ -120,33 +160,19 @@ func (w *walletRunner) tick(ctx context.Context) {
 		w.st.ErrStreak = 0
 	} else {
 		w.st.ErrStreak++
+		w.st.LastError = firstErr.Error()
 	}
 	w.mu.Unlock()
-
-	for _, ev := range events {
-		msg, err := w.push.Push(ctx, ev)
-		if err != nil {
-			w.setErr(err)
-			w.log.Errorf("上报到账失败 %.2s 元: %v", ev.Money, err)
-			continue
-		}
-
-		w.mu.Lock()
-		w.st.PushedTotal++
-		w.st.LastEventTS = ev.TS
-		w.st.LastMoney = ev.Money
-		w.st.LastMsg = msg
-		w.st.LastError = ""
-		w.mu.Unlock()
-
-		w.log.Infof("识别到账 %s 元（%s）→ %s", ev.Money, ev.Source, msg)
-	}
 }
 
-func (w *walletRunner) setErr(err error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.st.LastError = err.Error()
+func (w *walletRunner) pusherFor(src wallet.Source) *wallet.Pusher {
+	pid := src.PID()
+	if pid == "" {
+		for k := range w.pushers { // 单源时只有一个
+			return w.pushers[k]
+		}
+	}
+	return w.pushers[pid]
 }
 
 // metrics 把到账链路的健康度并进指标表，交给规则引擎判定。

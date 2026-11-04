@@ -20,6 +20,9 @@ import (
 // 实际静默失败。正确用法是先 `vmq-agent -wallet-probe` 用真实登录态抓一次，
 // 看清结构再填 parser 相关字段（见 docs/monitor-desktop.md）。
 type AlipayBillCfg struct {
+	// PID 是上报用的通道 ID。留空则用 wallet.pid 的全局默认。
+	// 微信和支付宝是两个通道（type 不同），必须能各配各的。
+	PID       string            `json:"pid,omitempty"`
 	Endpoint  string            `json:"endpoint"`
 	Method    string            `json:"method,omitempty"` // GET / POST，默认 GET
 	Cookie    string            `json:"cookie,omitempty"`
@@ -97,6 +100,8 @@ func NewAlipayBill(cfg AlipayBillCfg, timeout time.Duration) (*AlipayBill, error
 func (b *AlipayBill) Name() string { return "alipay-bill" }
 
 func (b *AlipayBill) Platform() int { return TypeAlipay }
+
+func (b *AlipayBill) PID() string { return b.cfg.PID }
 
 // Fetch 发一次请求，返回原始响应体。Probe 与 Poll 共用，保证探测到的
 // 就是运行时真正拿到的东西 —— 探测走另一套请求逻辑是自欺欺人。

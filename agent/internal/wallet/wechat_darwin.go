@@ -87,6 +87,8 @@ func (s *WeChatNotify) Name() string { return "wechat-notify" }
 
 func (s *WeChatNotify) Platform() int { return TypeWeChat }
 
+func (s *WeChatNotify) PID() string { return s.cfg.PID }
+
 func (s *WeChatNotify) Poll(ctx context.Context) ([]Event, error) {
 	rows, err := s.queryNew(ctx)
 	if err != nil {

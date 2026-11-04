@@ -1,0 +1,31 @@
+{
+  "name": "vmq",
+  "outputDirectory": "./dist",
+  "nodeVersion": "20.18.0",
+  "cloudFunctions": {
+    "maxDuration": 60
+  },
+  "headers": [
+    {
+      "source": "/console/assets/*",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/site/assets/*",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/static/*",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+    }
+  ],
+  "schedules": [
+    {
+      "name": "vmq-tick",
+      "cron": "0 3 * * *",
+      "path": "/api/cron/tick?token=change-me",
+      "method": "POST",
+      "timezone": "Asia/Shanghai"
+    }
+  ]
+}

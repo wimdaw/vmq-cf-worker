@@ -11,12 +11,17 @@
   "scripts": {
     "dev": "wrangler dev -c \"$(node scripts/cfg.mjs)\"",
     "deploy": "pnpm admin:build && pnpm web:build && wrangler deploy -c \"$(node scripts/cfg.mjs)\"",
+    "eo:build": "pnpm admin:build && pnpm web:build && node scripts/eo-build.mjs",
+    "eo:dev": "node scripts/eo-local.mjs",
+    "eo:smoke": "node scripts/eo-smoke.mjs",
+    "eo:routes": "edgeone makers generate-routes",
+    "eo:deploy": "pnpm eo:build && pnpm eo:routes && edgeone makers deploy",
     "typecheck": "tsc --noEmit",
     "test:web": "pnpm --filter @vmq/web typecheck",
-    "test:md5": "node --experimental-strip-types test/md5.check.mjs",
-    "test:notify": "node --experimental-strip-types test/notify.check.mjs",
-    "test:forwarded": "node --experimental-strip-types test/forwarded.check.mjs",
-    "test:params": "node --experimental-strip-types test/params.check.mjs",
+    "test:md5": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/md5.check.mjs",
+    "test:notify": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/notify.check.mjs",
+    "test:forwarded": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/forwarded.check.mjs",
+    "test:params": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/params.check.mjs",
     "test:smoke": "node test/smoke.http.mjs",
     "db:create": "wrangler d1 create vmq",
     "db:local": "wrangler d1 execute vmq --local -c \"$(node scripts/cfg.mjs)\" --file=./schema.sql",
@@ -24,11 +29,11 @@
     "db:seed:local": "wrangler d1 execute vmq --local -c \"$(node scripts/cfg.mjs)\" --file=./seed.sql",
     "db:seed:remote": "wrangler d1 execute vmq --remote -c \"$(node scripts/cfg.mjs)\" --file=./seed.sql",
     "test:siteurl": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/siteurl.check.mjs",
-    "test": "pnpm typecheck && pnpm test:web && pnpm test:pay && pnpm test:qr && pnpm test:md5 && pnpm test:notify && pnpm test:forwarded && pnpm test:params && pnpm test:alias && pnpm test:siteurl && pnpm test:http",
-    "test:pay": "node --experimental-strip-types test/pay.check.mjs",
-    "test:qr": "node --experimental-strip-types test/qr.decode.mjs && node --experimental-strip-types test/qr.check.mjs",
+    "test": "pnpm typecheck && pnpm test:web && pnpm test:pay && pnpm test:qr && pnpm test:md5 && pnpm test:notify && pnpm test:forwarded && pnpm test:params && pnpm test:alias && pnpm test:siteurl",
+    "test:pay": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/pay.check.mjs",
+    "test:qr": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/qr.decode.mjs && node --experimental-strip-types --import ./test/ts-import-hook.mjs test/qr.check.mjs",
     "admin": "node scripts/reset-admin.mjs",
-    "test:alias": "node --experimental-strip-types test/alias.check.mjs",
+    "test:alias": "node --experimental-strip-types --import ./test/ts-import-hook.mjs test/alias.check.mjs",
     "check:leak": "node scripts/check-leak.mjs",
     "check:leak:worktree": "node scripts/check-leak.mjs --worktree",
     "check:leak:history": "node scripts/check-leak.mjs --history",
@@ -41,12 +46,18 @@
     "web:build": "pnpm --filter @vmq/web build",
     "dev:all": "pnpm admin:build && pnpm web:build && pnpm dev",
     "test:http": "node test/smoke.http.mjs",
-    "verify": "pnpm test && pnpm test:api && pnpm check:leak"
+    "verify": "pnpm test && pnpm eo:build && pnpm eo:smoke && pnpm check:leak",
+    "verify:cf": "pnpm test && pnpm test:http && pnpm test:api && pnpm check:leak"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260914.1",
+    "edgeone": "^1.6.41",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.3",
     "wrangler": "^4.131.1"
+  },
+  "dependencies": {
+    "@edgeone/pages-blob": "^0.0.17"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

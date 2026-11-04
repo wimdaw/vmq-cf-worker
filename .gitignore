@@ -2,6 +2,8 @@ node_modules
 .wrangler
 .dev.vars
 dev.vars
+.env
+.env.*
 *.sqlite
 .DS_Store
 _tmp_*
@@ -34,3 +36,8 @@ public/site
 # AI 助手的工作区记忆（本地工具产物）
 .workbuddy-ai/
 wrangler.local.*.jsonc
+
+# EdgeOne 构建产物（pnpm eo:build 生成，部署时现场构建）
+dist/
+cloud-functions/
+.edgeone/

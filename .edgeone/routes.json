@@ -1,0 +1,63 @@
+{
+  "version": 3,
+  "routes": [
+    {
+      "src": "^/$",
+      "server-name": "api-node"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/(.*)$",
+      "server-name": "api-node"
+    }
+  ],
+  "conf": {
+    "headers": [
+      {
+        "source": "/console/assets/*",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/site/assets/*",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/static/*",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      }
+    ],
+    "redirects": [],
+    "caches": [],
+    "cloudFunctions": {
+      "maxDuration": 60
+    },
+    "outputDirectory": "./dist",
+    "nodeVersion": "20.18.0"
+  },
+  "schedules": [
+    {
+      "name": "vmq-tick",
+      "cron": "0 3 * * *",
+      "path": "/api/cron/tick?token=vmq_cron_7e3b9a1f5d2c",
+      "method": "POST",
+      "timezone": "Asia/Shanghai"
+    }
+  ]
+}

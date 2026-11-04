@@ -37,7 +37,10 @@ public/site
 .workbuddy-ai/
 wrangler.local.*.jsonc
 
-# EdgeOne 构建产物（pnpm eo:build 生成，部署时现场构建）
+# EdgeOne 本地临时文件
 dist/
-cloud-functions/
-.edgeone/
+.edgeone/*
+!.edgeone/routes.json
+
+# 桌面端本地编译产物
+agent/dist/

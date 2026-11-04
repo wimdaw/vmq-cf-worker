@@ -2,6 +2,14 @@ import type { Env, OrderRow } from './db.ts';
 import { appSecret, getConfig } from './db.ts';
 import { epaySign } from './sign.ts';
 import { now } from './util.ts';
+import {
+  addNotify,
+  dueNotify as blobDueNotify,
+  getNotify,
+  patchOrder,
+  saveNotify,
+  type NotifyTask,
+} from './blob-db.ts';
 
 /** 退避序列（秒）。旧版 PHP 完全没有重试，这里补上。 */
 const BACKOFF = [30, 120, 600, 3600, 21600, 21600];
@@ -50,12 +58,7 @@ export async function buildNotifyPayload(env: Env, order: OrderRow): Promise<str
 
 export async function enqueueNotify(env: Env, order: OrderRow): Promise<number> {
   const payload = await buildNotifyPayload(env, order);
-  const r = await env.DB.prepare(
-    'INSERT INTO notify_task (order_id, url, payload, attempts, next_at, done) VALUES (?, ?, ?, 0, ?, 0)'
-  )
-    .bind(order.order_id, order.notify_url, payload, now())
-    .run();
-  return Number(r.meta.last_row_id ?? 0);
+  return addNotify(order.order_id, order.notify_url, payload, now());
 }
 
 /**
@@ -95,17 +98,7 @@ export function isSuccessBody(body: string, expect: string): boolean {
  * 投递一次。返回 true 表示已成功（或任务不存在/已完成）。
  */
 export async function deliverTask(env: Env, taskId: number): Promise<boolean> {
-  const task = await env.DB.prepare('SELECT * FROM notify_task WHERE id = ?')
-    .bind(taskId)
-    .first<{
-      id: number;
-      order_id: string;
-      url: string;
-      payload: string;
-      attempts: number;
-      next_at: number;
-      done: number;
-    }>();
+  const task = await getNotify(taskId);
   if (!task || task.done === 1) return true;
 
   const expect = await getConfig(env, 'notify_success_body', '@json:code=1');
@@ -134,12 +127,10 @@ export async function deliverTask(env: Env, taskId: number): Promise<boolean> {
   }
 
   if (ok) {
-    await env.DB.prepare('UPDATE notify_task SET done = 1, last_error = ? WHERE id = ?')
-      .bind('', taskId)
-      .run();
-    await env.DB.prepare('UPDATE orders SET status = ? WHERE order_id = ? AND status = ?')
-      .bind(1, task.order_id, 2)
-      .run();
+    const done: NotifyTask = { ...task, done: 1, last_error: '' };
+    await saveNotify(done);
+    // 2 → 1：回调失败过的订单补投成功后转成已支付
+    await patchOrder(task.order_id, { status: 1 }, 2);
     return true;
   }
 
@@ -147,20 +138,18 @@ export async function deliverTask(env: Env, taskId: number): Promise<boolean> {
   const delay = BACKOFF[Math.min(attempts - 1, BACKOFF.length - 1)] ?? 21600;
   const finished = attempts >= MAX_ATTEMPTS ? 1 : 0;
 
-  await env.DB.prepare(
-    'UPDATE notify_task SET attempts = ?, next_at = ?, done = ?, last_error = ? WHERE id = ?'
-  )
-    .bind(attempts, now() + delay, finished, err, taskId)
-    .run();
-
-  await env.DB.prepare('UPDATE orders SET notify_attempts = ? WHERE order_id = ?')
-    .bind(attempts, task.order_id)
-    .run();
+  const next: NotifyTask = {
+    ...task,
+    attempts,
+    next_at: now() + delay,
+    done: finished,
+    last_error: err,
+  };
+  await saveNotify(next);
+  await patchOrder(task.order_id, { notify_attempts: attempts });
 
   // 已支付但回调没成功 → 标记 2（后台显示"回调失败"，便于人工补单）
-  await env.DB.prepare('UPDATE orders SET status = 2 WHERE order_id = ? AND status = 1')
-    .bind(task.order_id)
-    .run();
+  await patchOrder(task.order_id, { status: 2 }, 1);
 
   return false;
 }

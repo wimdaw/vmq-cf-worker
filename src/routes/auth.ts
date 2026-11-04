@@ -21,6 +21,7 @@ import {
 } from '../lib/auth';
 import { json, now, readParams } from '../lib/util';
 import * as contentRepo from '../modules/content/content.repository';
+import { findAdminForLogin, updateLoginTime } from '../modules/system/system.repository';
 
 const CAP_COOKIE = 'vmq_cap';
 
@@ -30,7 +31,8 @@ function clientIpOf(req: Request): string {
 
 /** 写操作日志。日志失败不影响主流程 */
 function addLog(env: Env, uid: number, content: string, ip: string): Promise<void> {
-  return contentRepo.addLog(env.DB, uid, content, ip);
+  void env;
+  return contentRepo.addLog(uid, content, ip);
 }
 
 export async function handleCaptcha(env: Env): Promise<Response> {
@@ -78,17 +80,13 @@ export async function handleLoginPost(req: Request, env: Env): Promise<Response>
     return json({ code: 0, msg: '验证码错误' });
   }
 
-  const row = await env.DB.prepare(
-    'SELECT id, username, password_hash, status FROM admins WHERE username = ?'
-  )
-    .bind(username)
-    .first<{ id: number; username: string; password_hash: string; status: number }>();
+  const row = await findAdminForLogin(username);
 
   if (!row || row.status !== 1 || !(await verifyPassword(password, row.password_hash))) {
     return json({ code: 0, msg: '账号或密码错误' });
   }
 
-  await env.DB.prepare('UPDATE admins SET login_time = ? WHERE id = ?').bind(now(), row.id).run();
+  await updateLoginTime(row.id);
   await addLog(env, row.id, `登录后台`, clientIpOf(req));
 
   const res = json({ code: 1, msg: '登录成功' });

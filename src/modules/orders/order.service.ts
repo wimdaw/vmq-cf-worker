@@ -21,7 +21,7 @@ export async function listOrders(env: Env, p: Record<string, string>): Promise<A
   const type = filterVal(p, 'type');
   const { limit, offset } = pageArgs(p);
 
-  const { rows, count } = await repo.list(env.DB, {
+  const { rows, count } = await repo.list({
     status: status === '' ? undefined : Number(status),
     type: type === '' ? undefined : Number(type),
     startTs: dayTs(filterVal(p, 'start')),
@@ -42,14 +42,14 @@ export async function listOrders(env: Env, p: Record<string, string>): Promise<A
  */
 export async function setBd(env: Env, p: Record<string, string>): Promise<ApiResult> {
   const id = intVal(p, 'id');
-  const order = await repo.findById(env.DB, id);
+  const order = await repo.findById(id);
   if (!order) return fail('订单不存在');
   if (order.status === STATUS.PENDING) return fail('该订单还未支付，不能补单');
   if (!order.notify_url) return fail('该订单没有回调地址');
 
   const taskId = await enqueueNotify(env, order);
   await deliverTask(env, taskId);
-  const attempts = await repo.notifyAttempts(env.DB, id);
+  const attempts = await repo.notifyAttempts(id);
   return ok(`已重新通知（累计尝试 ${attempts} 次）`);
 }
 
@@ -57,6 +57,6 @@ export async function setBd(env: Env, p: Record<string, string>): Promise<ApiRes
 export async function removeOrders(env: Env, p: Record<string, string>): Promise<ApiResult> {
   const list = idsOf(p);
   if (!list.length) return fail('缺少 id');
-  const n = await repo.removeMany(env.DB, list);
+  const n = await repo.removeMany(list);
   return ok(`已删除 ${n} 条`);
 }

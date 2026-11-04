@@ -1,6 +1,7 @@
 import type { Env } from '../lib/db';
 import { getConfig } from '../lib/db';
 import { html, json, now } from '../lib/util';
+import { allConfig, countsByStatus, getMonitor, listOrders, listPassages } from '../lib/blob-db';
 
 interface Stats {
   dbReady: boolean;
@@ -50,41 +51,38 @@ export async function collectStats(env: Env): Promise<Stats> {
   };
 
   try {
-    await env.DB.prepare('SELECT COUNT(*) AS c FROM config').first();
+    await allConfig();
     base.dbReady = true;
   } catch (e) {
     base.dbError = String(e).slice(0, 300);
     return base;
   }
 
-  const ms = await env.DB.prepare('SELECT last_heart, last_pay FROM monitor_state WHERE id = 1')
-    .first<{ last_heart: number; last_pay: number }>();
-  if (ms) {
-    base.monitor = {
-      lastHeart: ms.last_heart,
-      lastPay: ms.last_pay,
-      online: ts - ms.last_heart <= 60,
-    };
-  }
+  const ms = await getMonitor();
+  base.monitor = {
+    lastHeart: ms.last_heart,
+    lastPay: ms.last_pay,
+    online: ts - ms.last_heart <= 60,
+  };
 
-  const p = await env.DB.prepare('SELECT COUNT(*) AS c FROM passages WHERE status = 1')
-    .first<{ c: number }>();
-  base.passages = p?.c ?? 0;
+  base.passages = (await listPassages({ status: 1, limit: 1, offset: 0 })).count;
 
-  const rows = await env.DB.prepare(
-    'SELECT status, COUNT(*) AS c FROM orders GROUP BY status'
-  ).all<{ status: number; c: number }>();
-  for (const r of rows.results) {
-    base.orders[String(r.status)] = r.c;
-    base.totalOrders += r.c;
+  const counts = await countsByStatus();
+  for (const [k, v] of Object.entries(counts)) {
+    base.orders[k] = v;
+    base.totalOrders += v;
   }
 
   const debug = (await getConfig(env, 'DEBUG_PAGE', '0')) === '1';
   if (debug) {
-    const recent = await env.DB.prepare(
-      'SELECT order_id, money, truemoney, status, create_time FROM orders ORDER BY id DESC LIMIT 8'
-    ).all<Stats['recent'][number]>();
-    base.recent = recent.results;
+    const recent = await listOrders({ limit: 8, offset: 0 });
+    base.recent = recent.rows.map((r) => ({
+      order_id: r.order_id,
+      money: r.money,
+      truemoney: r.truemoney,
+      status: r.status,
+      create_time: r.create_time,
+    }));
   }
 
   return base;

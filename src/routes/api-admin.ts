@@ -127,14 +127,14 @@ export async function handleAdminApi(req: Request, env: Env, sub: string): Promi
 
   if (path === '/me') {
     // head_img 给侧边栏账号区显示头像用（没设置就是空串，前端回退到默认图标）
-    const me = await profileOf(env.DB, uid);
+    const me = await profileOf(uid);
     return reply(okData({ id: uid, username: session.u, role: 1, head_img: me?.head_img ?? '' }));
   }
   if (path === '/logout' && method === 'POST') return logoutJson();
 
   if (path === '/profile') {
     if (method === 'PUT' || method === 'POST') return reply(await saveProfile(env, p, uid));
-    const row = await profileOf(env.DB, uid);
+    const row = await profileOf(uid);
     return row ? reply(okData(row)) : replyFail('账号不存在');
   }
   if (path === '/profile/password' && (method === 'PUT' || method === 'POST')) {
@@ -150,8 +150,8 @@ export async function handleAdminApi(req: Request, env: Env, sub: string): Promi
    * 原来这些是服务端渲染进 welcome.html 的，现在改成接口，SPA 自己排版。
    */
   if (path === '/system-info' && method === 'GET') {
-    const cfg = await allConfig(env.DB);
-    const heart = await statsRepo.lastHeart(env.DB);
+    const cfg = await allConfig();
+    const heart = await statsRepo.lastHeart();
     const ts = Math.floor(Date.now() / 1000);
     const age = heart ? ts - heart : -1;
     // 与 /stats 共用同一套阈值，避免两处判定不一致
@@ -255,7 +255,7 @@ export async function handleAdminApi(req: Request, env: Env, sub: string): Promi
 
   if (path === '/config') {
     if (method === 'GET') {
-      const all = await allConfig(env.DB);
+      const all = await allConfig();
       const data: Record<string, string> = { ...all };
       const secretSet: Record<string, boolean> = {};
       for (const k of SECRET_CONFIG_KEYS) {

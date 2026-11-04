@@ -1,9 +1,10 @@
-import type { Env, PassageRow } from '../lib/db';
+import type { Env } from '../lib/db';
 import { getConfigInt, STATUS } from '../lib/db';
 import { getOrder } from '../lib/order';
 import { loadSettings, staticBase } from '../lib/page';
 import { renderPayPage } from '../templates/pay';
 import { buildNotifyPayload } from '../lib/notify';
+import { getPassage } from '../lib/blob-db';
 import { html, json, now, publicUrl } from '../lib/util';
 
 export async function handlePayPage(env: Env, req: Request, orderId: string): Promise<Response> {
@@ -12,11 +13,7 @@ export async function handlePayPage(env: Env, req: Request, orderId: string): Pr
 
   const [settings, passage] = await Promise.all([
     loadSettings(env),
-    order.passage_id > 0
-      ? env.DB.prepare('SELECT * FROM passages WHERE id = ?')
-          .bind(order.passage_id)
-          .first<PassageRow>()
-      : Promise.resolve(null),
+    order.passage_id > 0 ? getPassage(order.passage_id) : Promise.resolve(null),
   ]);
   const configuredTimeout = Number.parseInt(settings['order_timeout'] ?? settings['close'] ?? '5', 10);
   const closeMinutes = Number.isFinite(configuredTimeout) ? configuredTimeout : 5;

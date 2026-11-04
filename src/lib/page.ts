@@ -1,6 +1,7 @@
 /** 页面渲染的公共部分：占位符替换、时间格式化、配置读取 */
 
 import type { Env } from './db';
+import { allConfig } from './blob-db';
 import { externalHost, externalProto, hostOf } from './util';
 
 const SHANGHAI = 8 * 3600;
@@ -79,10 +80,8 @@ export function fmtTime(ts: number): string {
 export type Settings = Record<string, string>;
 
 export async function loadSettings(env: Env): Promise<Settings> {
-  const rows = await env.DB.prepare('SELECT k, v FROM config').all<{ k: string; v: string }>();
-  const out: Settings = {};
-  for (const r of rows.results) out[r.k] = r.v;
-  return out;
+  void env;
+  return allConfig();
 }
 
 /** 站点公共变量：模板里的 {$title} / {$footer} 等 */

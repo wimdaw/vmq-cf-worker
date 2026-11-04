@@ -1,14 +1,15 @@
 import type { Env } from './db';
 import { getConfigInt } from './db';
-import { now } from './util';
+import { acquirePool, releasePool } from './blob-db';
 
 /**
- * 金额池：把"分-类型"作为主键占位。
+ * 金额池：把"分-类型"作为 key 占位。
  *
  * 与旧版（php）完全一致的策略：
- *   INSERT OR IGNORE 抢占 → 失败就按 payQf 调整 1 分 → 最多试 10 次
+ *   条件写抢占（等价 INSERT OR IGNORE）→ 失败就按 payQf 调整 1 分 → 最多试 10 次
  *
- * D1 是单写者，主键冲突即天然互斥，不需要事务或锁。
+ * EdgeOne 版没有自增主键冲突，改用 Blob 的 onlyIfNew 条件写：
+ * 同一个 key 并发写入只有一笔成功，语义与原表主键互斥一致。
  *
  * @returns 分配成功返回实际应付分值；失败返回 null
  */
@@ -23,13 +24,7 @@ export async function allocatePrice(
 
   for (let i = 0; i < 10; i++) {
     if (cur <= 0) return null;
-    const key = `${cur}-${type}`;
-    const r = await env.DB.prepare(
-      'INSERT OR IGNORE INTO tmp_price (price, oid, created_at) VALUES (?, ?, ?)'
-    )
-      .bind(key, oid, now())
-      .run();
-    if ((r.meta.changes ?? 0) > 0) return cur;
+    if (await acquirePool(cur, type, oid)) return cur;
     cur += payQf === 2 ? -1 : 1;
   }
   return null;
@@ -37,7 +32,8 @@ export async function allocatePrice(
 
 /** 支付成功或订单关闭时释放占位 */
 export async function releasePrice(env: Env, oid: string): Promise<void> {
-  await env.DB.prepare('DELETE FROM tmp_price WHERE oid = ?').bind(oid).run();
+  void env;
+  await releasePool(oid);
 }
 
 /** 分 → 元，保留两位（避免浮点误差） */

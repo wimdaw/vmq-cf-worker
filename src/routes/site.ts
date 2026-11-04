@@ -4,6 +4,7 @@ import type { Env } from '../lib/db';
 import { injectAssetBase, loadSettings, rewriteAssetUrls, siteVars, staticBase } from '../lib/page';
 import { createDemoOrder } from '../lib/order';
 import { qrPng } from '../lib/qr';
+import { getUpload } from '../lib/blob-db';
 import { clientIp, html, publicUrl, text } from '../lib/util';
 
 /**
@@ -154,14 +155,12 @@ export async function handleQrCode(req: Request): Promise<Response> {
 
 /** 后台图片上传后的访问地址：/upload/:hash */
 export async function handleUploadGet(env: Env, hash: string): Promise<Response> {
-  const row = await env.DB.prepare('SELECT mime, data FROM uploads WHERE hash = ?')
-    .bind(hash)
-    .first<{ mime: string; data: string }>();
-  if (!row) return text('not found', 404);
-  const bin = Uint8Array.from(atob(row.data), (c) => c.charCodeAt(0));
-  return new Response(bin, {
+  void env;
+  const file = await getUpload(hash);
+  if (!file) return text('not found', 404);
+  return new Response(file.bytes, {
     headers: {
-      'content-type': row.mime,
+      'content-type': file.mime,
       'cache-control': 'public, max-age=31536000, immutable',
     },
   });

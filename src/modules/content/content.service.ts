@@ -13,7 +13,7 @@ import * as repo from './content.repository';
 export async function listLogs(env: Env, p: Record<string, string>): Promise<ApiResult> {
   const { limit, offset } = pageArgs(p);
   const role = filterVal(p, 'role');
-  const { rows, count } = await repo.listLogs(env.DB, {
+  const { rows, count } = await repo.listLogs({
     uid: role === '' ? undefined : Number(role),
     limit,
     offset,
@@ -29,11 +29,11 @@ export async function listLogs(env: Env, p: Record<string, string>): Promise<Api
 export async function removeLogs(env: Env, p: Record<string, string>): Promise<ApiResult> {
   if (p['time']) {
     const days = Number(p['time']) || 7;
-    const n = await repo.removeLogsBefore(env.DB, days);
+    const n = await repo.removeLogsBefore(days);
     return ok(`已清理 ${n} 条`);
   }
   const list = idsOf(p);
   if (!list.length) return fail('缺少 id');
-  await repo.removeLogs(env.DB, list);
+  await repo.removeLogs(list);
   return ok(`已删除 ${list.length} 条`);
 }

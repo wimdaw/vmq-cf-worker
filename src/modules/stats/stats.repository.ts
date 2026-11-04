@@ -3,7 +3,12 @@
  *
  * 所有"按天"的口径都固定用 Asia/Shanghai（+8，无夏令时），
  * 与后台看板、模板里的时间显示保持一致 —— 这里不用 UTC。
+ *
+ * EdgeOne 版没有 SQL 聚合：摘要按「月」存在 Blob 上（odx/YYYY-MM），
+ * 统计口径全部在 lib/blob-db.ts 里现算，进程内缓存 5 秒。
  */
+import { dailyPaid as blobDailyPaid, getMonitor, paidSince as blobPaidSince, paidTotals as blobPaidTotals } from '../../lib/blob-db';
+
 const SHANGHAI = 8 * 3600;
 
 /** 今天 0 点（上海时区）的 unix 秒；offset 为往前推的天数 */
@@ -32,54 +37,24 @@ export interface Totals {
 }
 
 /** 累计已收（status 1/2 都算钱已到账：1=回调成功，2=回调失败但钱到了） */
-export async function paidTotals(db: D1Database): Promise<Totals> {
-  const r = await db
-    .prepare(
-      "SELECT COUNT(*) AS c, COALESCE(SUM(CAST(truemoney AS REAL)),0) AS s FROM orders WHERE status IN (1,2)"
-    )
-    .first<Totals>();
-  return { c: r?.c ?? 0, s: r?.s ?? 0 };
+export async function paidTotals(): Promise<Totals> {
+  return blobPaidTotals();
 }
 
 /** 指定时刻之后的已收 */
-export async function paidSince(db: D1Database, since: number): Promise<Totals> {
-  const r = await db
-    .prepare(
-      'SELECT COUNT(*) AS c, COALESCE(SUM(CAST(truemoney AS REAL)),0) AS s FROM orders WHERE status IN (1,2) AND pay_time >= ?'
-    )
-    .bind(since)
-    .first<Totals>();
-  return { c: r?.c ?? 0, s: r?.s ?? 0 };
+export async function paidSince(since: number): Promise<Totals> {
+  return blobPaidSince(since);
 }
 
 /** 按天聚合（返回 dayKey → 汇总） */
-export async function dailyPaid(
-  db: D1Database,
-  since: number
-): Promise<Map<number, Totals>> {
-  const r = await db
-    .prepare(
-      `SELECT CAST((pay_time + 28800) / 86400 AS INTEGER) AS d,
-              COUNT(*) AS c,
-              COALESCE(SUM(CAST(truemoney AS REAL)),0) AS s
-         FROM orders
-        WHERE status IN (1,2) AND pay_time >= ?
-        GROUP BY d`
-    )
-    .bind(since)
-    .all<{ d: number; c: number; s: number }>();
-
-  const map = new Map<number, Totals>();
-  for (const row of r.results) map.set(row.d, { c: row.c, s: row.s });
-  return map;
+export async function dailyPaid(since: number): Promise<Map<number, Totals>> {
+  return blobDailyPaid(since);
 }
 
 /** 监控端最后一次心跳（0 = 从没连过） */
-export async function lastHeart(db: D1Database): Promise<number> {
-  const r = await db
-    .prepare('SELECT last_heart FROM monitor_state WHERE id = 1')
-    .first<{ last_heart: number }>();
-  return Number(r?.last_heart ?? 0);
+export async function lastHeart(): Promise<number> {
+  const m = await getMonitor();
+  return Number(m.last_heart ?? 0);
 }
 
 export { dayKey };

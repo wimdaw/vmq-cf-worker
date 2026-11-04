@@ -18,7 +18,7 @@ export async function listAdmins(env: Env, p: Record<string, string>): Promise<A
   const { limit, offset } = pageArgs(p);
   const role = filterVal(p, 'role');
 
-  const { rows, count } = await repo.listAdmins(env.DB, {
+  const { rows, count } = await repo.listAdmins({
     role: role === '' ? undefined : Number(role),
     limit,
     offset,
@@ -57,24 +57,24 @@ export async function saveAdmin(
     if (password.length < 6) return fail('密码至少 6 位');
     if (password !== repassword) return fail('两次密码不一致');
   }
-  if (await repo.usernameTaken(env.DB, username, id)) return fail('用户名已存在');
+  if (await repo.usernameTaken(username, id)) return fail('用户名已存在');
 
   const data = { username, role, status, head_img: headImg };
 
   if (id) {
-    await repo.updateAdmin(env.DB, id, data, password ? await hashPassword(password) : undefined);
+    await repo.updateAdmin(id, data, password ? await hashPassword(password) : undefined);
     return ok('保存成功');
   }
 
   if (!password) return fail('请设置密码');
-  await repo.insertAdmin(env.DB, data, await hashPassword(password));
+  await repo.insertAdmin(data, await hashPassword(password));
   return ok('添加成功');
 }
 
 export async function setAdminStatus(env: Env, p: Record<string, string>): Promise<ApiResult> {
   const id = intVal(p, 'id');
   if (!id) return fail('缺少 id');
-  await repo.setAdminStatus(env.DB, id, Number(p['status'] ?? 0) || 0);
+  await repo.setAdminStatus(id, Number(p['status'] ?? 0) || 0);
   return ok('设置成功');
 }
 
@@ -87,7 +87,7 @@ export async function removeAdmins(
   const list = idsOf(p);
   if (list.includes(currentUid)) return fail('不能删除当前登录账号');
   if (!list.length) return fail('缺少 id');
-  await repo.removeAdmins(env.DB, list);
+  await repo.removeAdmins(list);
   return ok(`已删除 ${list.length} 条`);
 }
 
@@ -102,7 +102,7 @@ export async function saveProfile(
   p: Record<string, string>,
   currentUid: number
 ): Promise<ApiResult> {
-  await repo.updateProfile(env.DB, currentUid, {
+  await repo.updateProfile(currentUid, {
     head_img: p['head_img'] ?? '',
   });
   return ok('保存成功');
@@ -118,7 +118,7 @@ export async function changePassword(
   const again = p['password_again'] ?? '';
   if (pw.length < 6) return fail('密码至少 6 位');
   if (pw !== again) return fail('两次密码不一致');
-  await repo.updatePassword(env.DB, currentUid, await hashPassword(pw));
+  await repo.updatePassword(currentUid, await hashPassword(pw));
   return ok('密码已修改，请重新登录');
 }
 
@@ -166,7 +166,7 @@ export async function saveConfig(env: Env, p: Record<string, string>): Promise<A
   }
   if (!entries.length) return fail('没有需要保存的内容');
 
-  await repo.saveConfigEntries(env.DB, entries);
+  await repo.saveConfigEntries(entries);
   return ok('保存成功');
 }
 
@@ -180,6 +180,6 @@ export async function saveEpayConfig(env: Env, p: Record<string, string>): Promi
     if (p[k] === undefined) continue;
     entries.push([k, String(p[k])]);
   }
-  await repo.saveConfigEntries(env.DB, entries);
+  await repo.saveConfigEntries(entries);
   return ok('保存成功');
 }

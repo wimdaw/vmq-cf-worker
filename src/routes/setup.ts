@@ -15,6 +15,7 @@ import type { Env } from '../lib/db';
 import { setAdminAliasCache } from '../lib/db';
 import { hashPassword } from '../lib/auth';
 import { externalHost, externalProto, html, publicUrl, randHex, text } from '../lib/util';
+import { countAdmins as blobCountAdmins, getConfigs, insertAdmin, saveConfig } from '../lib/blob-db';
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -149,13 +150,9 @@ function notReadyPage(): string {
   );
 }
 
-async function countAdmins(env: Env): Promise<number | null> {
-  try {
-    const r = await env.DB.prepare('SELECT COUNT(*) AS c FROM admins').first<{ c: number }>();
-    return Number(r?.c ?? 0);
-  } catch {
-    return null; // 表不存在
-  }
+async function countAdmins(env: Env): Promise<number> {
+  void env;
+  return blobCountAdmins();
 }
 
 export async function handleSetup(req: Request, env: Env): Promise<Response> {
@@ -163,7 +160,6 @@ export async function handleSetup(req: Request, env: Env): Promise<Response> {
   const token = env.SETUP_TOKEN ?? '';
 
   const count = await countAdmins(env);
-  if (count === null) return html(notReadyPage(), 503);
   // 已初始化（线上走这里）→ 一律 404，不暴露任何信息
   if (count > 0) return text('Not Found', 404);
 
@@ -208,22 +204,18 @@ export async function handleSetup(req: Request, env: Env): Promise<Response> {
 
   // 并发保护：再查一次，避免两个人同时提交建出两个管理员
   const recheck = await countAdmins(env);
-  if ((recheck ?? 0) > 0) return text('Not Found', 404);
+  if (recheck > 0) return text('Not Found', 404);
 
-  // 已经有值的密钥不重新生成 —— 忘记密码时走"清空 admins 表 → 重新 /setup"这条路，
+  // 已经有值的密钥不重新生成 —— 忘记密码时走"清空管理员 → 重新 /setup"这条路，
   // 通讯密钥必须保持不变，否则监控端要重新绑定、历史订单的验签也会对不上。
-  const existing = await env.DB.prepare(
-    "SELECT k, v FROM config WHERE k IN ('key','admin_secret','cron_key','epayid_ali')"
-  ).all<{ k: string; v: string }>();
-  const have = new Map((existing.results ?? []).map((r) => [r.k, r.v || '']));
+  const have = await getConfigs(['key', 'admin_secret', 'cron_key', 'epayid_ali']);
 
-  const commKey = have.get('key') || randHex(16); // 通讯密钥（appPush 验签）
-  const adminSecret = have.get('admin_secret') || randHex(16); // 会话/验证码签名
-  const cronKey = have.get('cron_key') || randHex(16); // 兼容旧版的"监控密钥"字段
+  const commKey = have['key'] || randHex(16); // 通讯密钥（appPush 验签）
+  const adminSecret = have['admin_secret'] || randHex(16); // 会话/验证码签名
+  const cronKey = have['cron_key'] || randHex(16); // 兼容旧版的"监控密钥"字段
   // 商户 ID（pid）：商户下单时必传、且要写进回调，但服务端不做比对，本质上是个
-  // 约定值的凭证。以前留空让用户自己编，现在装的时候就生成一个 10 位数字，
-  // 后台「密钥管理」里直接显示、可复制。
-  const epayId = have.get('epayid_ali') || String(Math.floor(1e9 + Math.random() * 9e9));
+  // 约定值的凭证。以前留空让用户自己编，现在装的时候就生成一个 10 位数字。
+  const epayId = have['epayid_ali'] || String(Math.floor(1e9 + Math.random() * 9e9));
   // 对外域名：监控端扫码配置、支付网关地址都用它；认 X-Forwarded-Host，
   // 反代场景下不会把 Worker 自己的域名写进去。
   const siteUrl = `${externalProto(req)}://${externalHost(req)}`;
@@ -244,14 +236,13 @@ export async function handleSetup(req: Request, env: Env): Promise<Response> {
   ];
 
   try {
-    await env.DB.batch([
-      env.DB.prepare(
-        'INSERT INTO admins (username, password_hash, status, role, created_at) VALUES (?, ?, 1, 1, ?)'
-      ).bind(username, pwHash, ts),
-      ...cfg.map(([k, v]) =>
-        env.DB.prepare('INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v').bind(k, v)
-      ),
-    ]);
+    await insertAdmin({
+      username,
+      passwordHash: pwHash,
+      role: 1,
+      status: 1,
+    });
+    await saveConfig(cfg);
   } catch (e) {
     return html(formPage(token, `写入失败：${String(e).slice(0, 160)}`, back));
   }

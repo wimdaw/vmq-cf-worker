@@ -46,9 +46,9 @@ export function monitorStateOf(age: number): MonitorState {
  */
 export async function dashboard(env: Env): Promise<ApiResult> {
   const ts = now();
-  const total = await repo.paidTotals(env.DB);
-  const today = await repo.paidSince(env.DB, repo.dayStart(ts));
-  const byDay = await repo.dailyPaid(env.DB, repo.dayStart(ts, DAYS - 1));
+  const total = await repo.paidTotals();
+  const today = await repo.paidSince(repo.dayStart(ts));
+  const byDay = await repo.dailyPaid(repo.dayStart(ts, DAYS - 1));
 
   const chartData = {
     labels: [] as string[],
@@ -81,8 +81,8 @@ export async function dashboard(env: Env): Promise<ApiResult> {
     chartData.order2.push(cumOrder - laterOrder);
   }
 
-  const heart = await repo.lastHeart(env.DB);
-  const counts = await countByStatus(env.DB);
+  const heart = await repo.lastHeart();
+  const counts = await countByStatus();
   const heartAge = heart ? ts - heart : -1;
   const state = monitorStateOf(heartAge);
 
@@ -118,10 +118,10 @@ export interface Overview {
 export async function overview(env: Env): Promise<Overview> {
   const ts = now();
   const [counts, todayPaid, allPaid, lastHeart] = await Promise.all([
-    countByStatus(env.DB),
-    repo.paidSince(env.DB, repo.dayStart(ts)),
-    repo.paidTotals(env.DB),
-    repo.lastHeart(env.DB),
+    countByStatus(),
+    repo.paidSince(repo.dayStart(ts)),
+    repo.paidTotals(),
+    repo.lastHeart(),
   ]);
   return { counts, todayPaid, allPaid, lastHeart };
 }

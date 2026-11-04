@@ -22,7 +22,7 @@ export async function listPassages(
     return v === '' ? undefined : Number(v);
   };
 
-  const { rows, count } = await repo.list(env.DB, {
+  const { rows, count } = await repo.list({
     type: num('type'),
     code: num('code'),
     status: num('status'),
@@ -77,12 +77,12 @@ export async function savePassage(
 
   if (id) {
     data['update_time'] = Math.floor(Date.now() / 1000);
-    await repo.update(env.DB, id, data);
+    await repo.update(id, data);
     return ok('保存成功');
   }
 
   const t = repo.stamps();
-  await repo.insert(env.DB, { ...data, create_time: t.create_time, update_time: t.update_time });
+  await repo.insert({ ...data, create_time: t.create_time, update_time: t.update_time });
   return ok('添加成功');
 }
 
@@ -92,13 +92,13 @@ export async function setPassageStatus(
 ): Promise<ApiResult> {
   const id = intVal(p, 'id');
   if (!id) return fail('缺少 id');
-  await repo.setStatus(env.DB, id, intVal(p, 'status'));
+  await repo.setStatus(id, intVal(p, 'status'));
   return ok('设置成功');
 }
 
 export async function removePassages(env: Env, p: Record<string, string>): Promise<ApiResult> {
   const list = idsOf(p);
   if (!list.length) return fail('缺少 id');
-  await repo.removeMany(env.DB, list);
+  await repo.removeMany(list);
   return ok(`已删除 ${list.length} 条`);
 }

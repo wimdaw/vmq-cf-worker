@@ -1,9 +1,16 @@
-import type { Env, OrderRow } from '../lib/db';
+import type { Env } from '../lib/db';
 import { appSecret, getConfigInt, STATUS } from '../lib/db';
 import { enqueueNotify, tryNotifyNow } from '../lib/notify';
 import { releasePrice } from '../lib/amount';
 import { verifyMonitor } from '../lib/sign';
 import { clientIp, json, now, readParams } from '../lib/util';
+import {
+  addUnmatched,
+  findPendingByPrice,
+  patchOrder,
+  saveConfig,
+  setMonitor,
+} from '../lib/blob-db';
 
 /** /appHeart —— 监控端心跳 */
 export async function handleHeart(req: Request, env: Env): Promise<Response> {
@@ -20,16 +27,8 @@ export async function handleHeart(req: Request, env: Env): Promise<Response> {
   if (!ok) return json({ code: -1, msg: '签名校验不通过' });
 
   const ts = now();
-  // upsert：schema 不预置 id=1 行，纯 UPDATE 会静默写 0 行，
-  // 导致 require_online 永远认为监控端离线、全部拒单
-  await env.DB.prepare(
-    'INSERT INTO monitor_state (id, last_heart) VALUES (1, ?) ' +
-      'ON CONFLICT(id) DO UPDATE SET last_heart = excluded.last_heart'
-  ).bind(ts).run();
-  await env.DB.prepare(
-    "INSERT INTO config (k, v) VALUES ('jkstate', '1') " +
-      "ON CONFLICT(k) DO UPDATE SET v = '1'"
-  ).run();
+  await setMonitor({ last_heart: ts });
+  await saveConfig([['jkstate', '1']]);
 
   return json({ code: 0, msg: '成功' });
 }
@@ -63,35 +62,26 @@ export async function handlePush(req: Request, env: Env, ctx?: ExecutionContext)
   }
 
   const ts = now();
-  await env.DB.prepare(
-    'INSERT INTO monitor_state (id, last_pay) VALUES (1, ?) ' +
-      'ON CONFLICT(id) DO UPDATE SET last_pay = excluded.last_pay'
-  ).bind(ts).run();
+  await setMonitor({ last_pay: ts });
 
   const typeNum = Number(type);
-  // 金额唯一性由 tmp_price 保证：同一 (金额, 类型) 只可能有一笔待支付订单
-  const order = await env.DB.prepare(
-    'SELECT * FROM orders WHERE truemoney = ? AND status = ? AND type = ? ORDER BY id LIMIT 1'
-  )
-    .bind(price, STATUS.PENDING, typeNum)
-    .first<OrderRow>();
+  // 金额唯一性由金额池保证：同一 (金额, 类型) 只可能有一笔待支付订单
+  const order = await findPendingByPrice(price, typeNum);
 
   if (!order) {
     // 不污染订单表，单独记录
-    await env.DB.prepare(
-      'INSERT INTO unmatched_push (type, price, pid, t, sign, src_ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    )
-      .bind(type, price, pid, t, sign, clientIp(req), ts)
-      .run();
+    await addUnmatched({ type, price, pid, t, sign, src_ip: clientIp(req), created_at: ts });
     return json({ code: 0, msg: '无匹配订单，已记录' });
   }
 
-  // 标记已支付 + 释放金额占位
-  await env.DB.batch([
-    env.DB.prepare('UPDATE orders SET status = ?, pay_time = ?, close_time = ? WHERE id = ? AND status = ?')
-      .bind(STATUS.PAID, ts, ts, order.id, STATUS.PENDING),
-    env.DB.prepare('DELETE FROM tmp_price WHERE oid = ?').bind(order.order_id),
-  ]);
+  // 标记已支付 + 释放金额占位（状态条件保证重复推送不会重复处理）
+  const paid = await patchOrder(
+    order.order_id,
+    { status: STATUS.PAID, pay_time: ts, close_time: ts },
+    STATUS.PENDING
+  );
+  await releasePrice(env, order.order_id);
+  if (!paid) return json({ code: 0, msg: '订单已被处理' });
 
   // 时间线日志：`lag` = App 签名时间 → 我们处理完成（含网络+App 侧排队），
   // `matchMs` = 请求进来到匹配完成。排查"为什么慢"就看这两个数（wrangler tail 可见）。

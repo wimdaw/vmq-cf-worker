@@ -235,8 +235,9 @@ pnpm eo:build && pnpm eo:smoke   # 端到端 31 项断言，跑在内存库上
 
 ## 六、配套监控端
 
-服务端部署完还需要一个 Android App 去监听手机的通知栏，才能把到账结果推上来。
-它在本仓库的 `monitor-android/` 下（独立 Gradle 工程，不参与 Node 构建）：
+服务端部署完还需要监控端把「钱到了」和「系统还行不行」告诉它。本仓库自带两个：
+
+**1. 手机端（收款确认）** —— `monitor-android/`，独立 Gradle 工程，不参与 Node 构建。
 
 ```bash
 cd monitor-android
@@ -244,12 +245,22 @@ cd monitor-android
 ```
 
 装到手机后授予「通知使用权」+ 加入电池白名单，再扫后台「通道管理 → APP扫码配置」
-给出的二维码即可绑定。
-
-它只依赖本服务的两条接口 `POST /appHeart` 与 `POST /appPush`（签名分别是
+给出的二维码即可绑定。它只依赖 `POST /appHeart` 与 `POST /appPush`（签名分别是
 `md5(t+pid+key)` 与 `md5(type+price+t+pid+key)`，成功码是 **0**），
-这两条在 EdgeOne 版里的实现与 Cloudflare 版完全一致，App 无需任何改动。
-完整说明见 [`docs/monitor-android.md`](./monitor-android.md)。
+这两条在 EdgeOne 版里的实现与 Cloudflare 版完全一致，App 无需改动。
+详见 [`docs/monitor-android.md`](./monitor-android.md)。
+
+**2. 桌面端（系统 + 业务监控）** —— `agent/`，一份 Go 代码交叉编译出 Windows / macOS / Linux。
+
+```bash
+cd agent && ./scripts/build.sh      # dist/vmq-agent-<os>-<arch>[.exe]
+```
+
+采集 CPU / 内存 / 磁盘 / 网络 / 进程 / 端口，加上从 `/api/health`、`/api/stats`
+读到的业务指标（监控端是否离线、待支付堆积、回调失败、可用通道数），
+按同一套规则判定后告警并上报到 `POST /api/agent/report`，后台用
+`GET /api/agent/state` 查看各机器的最新状态。
+详见 [`docs/monitor-desktop.md`](./monitor-desktop.md)。
 
 ## 七、本地开发小抄
 

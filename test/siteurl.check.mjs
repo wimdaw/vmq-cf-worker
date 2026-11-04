@@ -20,6 +20,11 @@ import { listPassages } from '../src/modules/passages/passage.service.ts';
 import { appSecret } from '../src/lib/db.ts';
 import { monitorSign, verifyMonitor } from '../src/lib/sign.ts';
 import { hostOf, originOf } from '../src/lib/util.ts';
+import { openStore } from '../src/lib/blob-store.ts';
+import { saveConfig, allConfig, countAdmins, invalidateConfigCache, resetDb } from '../src/lib/blob-db.ts';
+
+// 数据层走 Blob，单测用内存实现
+process.env.VMQ_STORE = 'memory';
 
 let bad = 0;
 function eq(got, want, label) {
@@ -49,33 +54,27 @@ eq(originOf('http://127.0.0.1:8787'), 'http://127.0.0.1:8787', 'originOf 127.0.0
 eq(originOf('localhost:8787'), 'https://localhost:8787', 'originOf 本机但没写 http 就给 https');
 eq(originOf(''), '', 'originOf 空串');
 
-/* ---------------- 假 D1：只实现列表 + 读 config ---------------- */
-function makeEnv(config = {}, rows = []) {
-  return {
-    DB: {
-      prepare(sql) {
-        const stmt = (args = []) => ({
-          async first() {
-            if (/COUNT\(\*\) AS c FROM passages/.test(sql)) return { c: rows.length };
-            if (/^SELECT v FROM config/.test(sql)) {
-              const v = config[args[0]];
-              return v === undefined ? null : { v };
-            }
-            return null;
-          },
-          async all() {
-            if (/^SELECT id, type, code/.test(sql)) return { results: rows };
-            return { results: [] };
-          },
-        });
-        return {
-          bind: (...args) => stmt(args),
-          first: () => stmt([]).first(),
-          all: () => stmt([]).all(),
-        };
-      },
-    },
-  };
+/* ---------------- 造数据：把配置和通道写进内存 Blob ----------------
+ *
+ * EdgeOne 版没有 D1，`listPassages` 从 Blob 的 `ps` 键读通道数组，
+ * 所以这里直接往 store 里塞，等价于以前伪造 `env.DB.prepare()`。
+ */
+async function makeEnv(config = {}, rows = []) {
+  const store = openStore();
+  await store.del('cfg'); // 每条用例从干净配置开始（否则上一条的 url/key 会串过来）
+  invalidateConfigCache(); // 配置有 3 秒进程内缓存，删 key 后必须一起清
+  const entries = Object.entries(config).map(([k, v]) => [k, String(v)]);
+  if (entries.length) await saveConfig(entries);
+  if (rows.length) {
+    const docs = rows.map((r) => ({
+      hang_free: 0,
+      cookie: '',
+      update_time: r.create_time,
+      ...r,
+    }));
+    await store.put('ps', JSON.stringify(docs));
+  }
+  return {};
 }
 
 const ROW = {
@@ -99,7 +98,7 @@ const ROW = {
 
 /** 取第一行生成的 APP 扫码配置 */
 async function appConfigOf(config, reqHost = '') {
-  const res = await listPassages(makeEnv(config, [ROW]), { limit: '10' }, reqHost);
+  const res = await listPassages(await makeEnv(config, [ROW]), { limit: '10' }, reqHost);
   return res.data[0].app_config;
 }
 
@@ -156,7 +155,7 @@ eq(
 
 // 拿列表里的密钥去签一次 appPush，必须和 /appPush 的验签对得上
 {
-  const env = makeEnv({ url: 'https://pay.example.com/', key: 'PUSHKEY' }, [ROW]);
+  const env = await makeEnv({ url: 'https://pay.example.com/', key: 'PUSHKEY' }, [ROW]);
   const cfg = (await listPassages(env, { limit: '10' }, '')).data[0].app_config;
   // 'https://host/KEY/8,1' → 取 path 第一段
   const emittedKey = new URL(cfg).pathname.split('/')[1];
@@ -172,34 +171,6 @@ eq(await appConfigOf({ key: 'KEY123' }, ''), '', '域名也没认到时返回空
 
 /* ---------------- /setup：初始化要顺手把站点地址写进 config ---------------- */
 {
-  const written = [];
-  const env = {
-    DB: {
-      prepare(sql) {
-        const binds = [];
-        return {
-          bind(...args) {
-            binds.push(...args);
-            return this;
-          },
-          async first() {
-            if (/COUNT\(\*\) AS c FROM admins/.test(sql)) return { c: 0 };
-            return null;
-          },
-          async all() {
-            return { results: [] };
-          },
-          async run() {
-            written.push({ sql, binds });
-            return { meta: {} };
-          },
-        };
-      },
-      async batch(stmts) {
-        for (const s of stmts) await s.run();
-      },
-    },
-  };
   const form = new URLSearchParams({
     username: 'boss_ok',
     password: 'Aa12345678',
@@ -207,6 +178,10 @@ eq(await appConfigOf({ key: 'KEY123' }, ''), '', '域名也没认到时返回空
     alias: 'myvault',
     sitename: '演示站',
   });
+
+  // 每次 POST 前换一个空 store：/setup 只在「还没建管理员」时可写
+  resetDb();
+  const env = {};
 
   // 表单页：两个密码框都要有「小眼睛」，且默认只显示睁眼那个图标
   const formHtml = await (await handleSetup(
@@ -235,25 +210,27 @@ eq(await appConfigOf({ key: 'KEY123' }, ''), '', '域名也没认到时返回空
     'https://pay.example.com/myvault/login',
     '/setup 跳到登录页（带别名）'
   );
-  const kv = Object.fromEntries(written.map((w) => [w.binds[0], w.binds[1]]));
+
+  // 断言落在真实存储上（EdgeOne 版配置是 Blob 里的一个 JSON 文档）
+  const kv = await allConfig();
   eq(kv['url'], 'https://pay.example.com', '/setup 写入站点地址（不含尾斜杠）');
   eq(kv['title'], '演示站', '/setup 写入站点名称');
   eq(kv['admin_alias'], 'myvault', '/setup 写入后台别名');
-  eq(/^INSERT INTO admins/.test(written[0].sql), true, '/setup 建管理员');
+  eq(await countAdmins(), 1, '/setup 建管理员');
   eq(/^\d{10}$/.test(kv['epayid_ali'] ?? ''), true, '/setup 自动生成 10 位商户 ID', String(kv['epayid_ali']));
   eq(kv['epayurl_ali'], 'https://pay.example.com', '/setup 落库支付网关地址');
 
-  // 反代场景：对外域名只在 X-Forwarded-Host 里，不能把 Worker 自己的域名写进去
-  written.length = 0;
+  // 反代场景：对外域名只在 X-Forwarded-Host 里，不能把站点自己的域名写进去
+  resetDb();
   const res2 = await handleSetup(
-    new Request('https://vmq.internal.workers.dev/setup', {
+    new Request('https://vmq.internal.example.com/setup', {
       method: 'POST',
       body: form,
       headers: { 'x-forwarded-host': 'pay.example.com', 'x-forwarded-proto': 'https' },
     }),
     env
   );
-  const kv2 = Object.fromEntries(written.map((w) => [w.binds[0], w.binds[1]]));
+  const kv2 = await allConfig();
   eq(kv2['url'], 'https://pay.example.com', '/setup 认 X-Forwarded-Host');
   eq(kv2['epayurl_ali'], 'https://pay.example.com', '网关地址也用对外域名');
   eq(

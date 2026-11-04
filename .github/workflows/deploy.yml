@@ -1,0 +1,49 @@
+name: Deploy to EdgeOne
+
+on:
+  push:
+    branches: [edgeone]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vmq-edgeone
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.14.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and generate routes
+        run: pnpm run build
+
+      - name: Deploy to EdgeOne
+        env:
+          EDGEONE_TOKEN: ${{ secrets.EDGEONE_TOKEN }}
+        run: |
+          if [ -z "$EDGEONE_TOKEN" ]; then
+            echo "::error::EDGEONE_TOKEN secret is not set"
+            exit 1
+          fi
+          npx edgeone makers deploy \
+            -t "$EDGEONE_TOKEN" \
+            -n vmq \
+            -a overseas \
+            --json \
+            --skip-ai-gateway-sync

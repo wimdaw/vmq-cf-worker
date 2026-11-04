@@ -47,8 +47,14 @@ shells['/console/index.html'] = readFileSync(consoleShell, 'utf8');
 /* --------------------------- 2) 复制静态资源 --------------------------- */
 
 const dist = p('dist');
-rmSync(dist, { recursive: true, force: true });
-mkdirSync(dist, { recursive: true });
+try {
+  rmSync(dist, { recursive: true, force: true });
+} catch {
+  // 容错：若遇受保护沙箱或文件锁，确保目录存在即可
+}
+if (!existsSync(dist)) {
+  mkdirSync(dist, { recursive: true });
+}
 
 /** 只复制目录内容，不复制 HTML（外壳走函数） */
 function copyDir(from, to) {

@@ -1,0 +1,36 @@
+name: Build Desktop Agents
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'agent/**'
+      - '.github/workflows/agent-build.yml'
+    branches:
+      - edgeone
+
+jobs:
+  build:
+    name: Build Cross-Platform Agents
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: agent/go.sum
+
+      - name: Build Agents
+        run: |
+          cd agent
+          chmod +x ./scripts/build.sh
+          ./scripts/build.sh
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmq-desktop-agents
+          path: agent/dist/*

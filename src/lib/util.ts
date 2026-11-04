@@ -84,24 +84,41 @@ export function clientIp(req: Request): string {
   return req.headers.get('cf-connecting-ip') ?? req.headers.get('x-real-ip') ?? '';
 }
 
+/** 判断是否为 EdgeOne 内部网关地址（云函数收到的 host 会被内部代理重写成该域名） */
+export function isInternalHost(host: string): boolean {
+  return /qcloudteo\.com$|pages-scf-|pages-pro-/i.test(host);
+}
+
 /**
  * 对外访问域名。
  *
- * 站点挂在 nginx/其它反代后面时，Host 头已经被改成 Worker 自己的域名
- * （workers.dev 按 Host 路由，不改就是 403/404），真正给用户看的域名
- * 在 X-Forwarded-Host 里。所以生成绝对链接时优先取它。
+ * EdgeOne 云函数运行时会把请求 URL 与 host 头重写为内部网关地址
+ * （如 pages-pro-xxx.pages-scf-hk-pro.qcloudteo.com），真实访问域名通过
+ * `eo-pages-host` 头传递，故优先读取；其次 x-forwarded-host，
+ * 再次未重写的 host 头，最后回退请求 URL。
  */
 export function externalHost(req: Request): string {
-  const xf = (req.headers.get('x-forwarded-host') ?? '').split(',')[0].trim();
-  if (xf) return xf;
-  return new URL(req.url).host;
+  const candidates = [
+    req.headers.get('eo-pages-host'),
+    req.headers.get('x-forwarded-host'),
+    req.headers.get('x-host'),
+    req.headers.get('host'),
+  ];
+  for (const candidate of candidates) {
+    const host = candidate?.split(',')[0].trim();
+    if (host && !isInternalHost(host)) {
+      return host;
+    }
+  }
+  const urlHost = new URL(req.url).host;
+  return isInternalHost(urlHost) ? '' : urlHost;
 }
 
 /** 对外协议：同理优先 X-Forwarded-Proto */
 export function externalProto(req: Request): 'http' | 'https' {
   const xf = (req.headers.get('x-forwarded-proto') ?? '').split(',')[0].trim().toLowerCase();
   if (xf === 'http' || xf === 'https') return xf;
-  return new URL(req.url).protocol === 'https:' ? 'https' : 'http';
+  return new URL(req.url).protocol === 'http:' ? 'http' : 'https';
 }
 
 /** 拼一个用户视角的绝对地址（反代场景下不会串到 Worker 域名） */

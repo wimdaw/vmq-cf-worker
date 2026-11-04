@@ -45,8 +45,15 @@
     ],
     "redirects": [],
     "caches": [],
+    "buildCommand": "pnpm run build",
+    "installCommand": "pnpm install",
     "cloudFunctions": {
-      "maxDuration": 60
+      "maxDuration": 120,
+      "regions": {
+        "overseas": [
+          "ap-hongkong"
+        ]
+      }
     },
     "outputDirectory": "./dist",
     "nodeVersion": "20.18.0"

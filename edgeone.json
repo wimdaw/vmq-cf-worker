@@ -1,9 +1,14 @@
 {
   "name": "vmq-cf-worker",
+  "buildCommand": "pnpm run build",
+  "installCommand": "pnpm install",
   "outputDirectory": "./dist",
   "nodeVersion": "20.18.0",
   "cloudFunctions": {
-    "maxDuration": 60
+    "maxDuration": 120,
+    "regions": {
+      "overseas": ["ap-hongkong"]
+    }
   },
   "headers": [
     {

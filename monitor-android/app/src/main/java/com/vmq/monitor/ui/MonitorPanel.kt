@@ -175,6 +175,9 @@ class MonitorPanel : Fragment() {
         } else {
             MonitorService.start(requireContext())
             toast("监控已开启")
+            if (!activity.isBatteryWhitelisted()) {
+                activity.requestBatteryWhitelist()
+            }
         }
         // serviceEnabled 是 Service 的 onStartCommand / onDestroy 写的，
         // 这里立刻读还是旧值。刷新周期已经放宽到 5 秒，不能靠自动刷新兜底，

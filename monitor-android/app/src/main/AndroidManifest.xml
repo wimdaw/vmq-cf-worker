@@ -23,6 +23,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- 闹钟与硬件唤醒：防止息屏/Doze 模式下协程冻结，确保心跳定时器精准唤醒 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <!-- 电池优化白名单：防止系统杀掉后台 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
@@ -87,7 +91,12 @@
         <service
             android:name=".monitor.MonitorService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".monitor.HeartbeatReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".monitor.BootReceiver"

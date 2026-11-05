@@ -31,6 +31,7 @@ class MonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         createChannel()
     }
 
@@ -40,12 +41,21 @@ class MonitorService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
 
         val config = ConfigStore.get(this)
         if (config.configured) {
             HeartbeatManager.get(this).start()
             PushWorker.get(this).start()
+            HeartbeatScheduler.start(this)
         }
         config.serviceEnabled = true
 
@@ -55,11 +65,27 @@ class MonitorService : Service() {
     }
 
     override fun onDestroy() {
+        if (instance == this) instance = null
+        HeartbeatScheduler.stop(this)
         HeartbeatManager.get(this).stop()
         PushWorker.get(this).stop()
         ConfigStore.get(this).serviceEnabled = false
         releaseWakeLock()
         super.onDestroy()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // 用户在最近任务列表中划掉 Activity 时，服务依然保持运行
+        val config = ConfigStore.get(this)
+        if (config.configured && config.serviceEnabled) {
+            val restartIntent = Intent(applicationContext, MonitorService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                applicationContext.startForegroundService(restartIntent)
+            } else {
+                applicationContext.startService(restartIntent)
+            }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -79,17 +105,21 @@ class MonitorService : Service() {
     }
 
     private fun buildNotification(): Notification {
+        val config = ConfigStore.get(this)
+        val text = when {
+            !config.configured -> "尚未配置，去配置面板填写"
+            else -> "监听中 · ${config.baseUrl}"
+        }
+        return buildNotificationWithText(text)
+    }
+
+    private fun buildNotificationWithText(text: String): Notification {
         val open = PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val config = ConfigStore.get(this)
-        val text = when {
-            !config.configured -> "尚未配置，去配置面板填写"
-            else -> "监听中 · ${config.baseUrl}"
-        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.app_name))
@@ -98,6 +128,11 @@ class MonitorService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(open)
             .build()
+    }
+
+    fun updateNotificationText(text: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        nm?.notify(NOTIFICATION_ID, buildNotificationWithText(text))
     }
 
     private fun createChannel() {
@@ -121,6 +156,13 @@ class MonitorService : Service() {
         private const val WAKE_TAG = "vmq:monitor"
 
         const val ACTION_STOP = "com.vmq.monitor.action.STOP"
+
+        @Volatile
+        private var instance: MonitorService? = null
+
+        fun updateStatus(text: String) {
+            instance?.updateNotificationText(text)
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, MonitorService::class.java)

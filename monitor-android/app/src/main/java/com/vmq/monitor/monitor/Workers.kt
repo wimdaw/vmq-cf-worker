@@ -4,6 +4,9 @@ import android.content.Context
 import com.vmq.monitor.data.PushStore
 import com.vmq.monitor.data.StateStore
 import com.vmq.monitor.net.ApiClient
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -141,27 +144,7 @@ class HeartbeatManager private constructor(context: Context) {
                     delay(HEART_INTERVAL_MS)
                     continue
                 }
-                val passages = config.allPassages()
-                var anyOk: Boolean
-                var interrupted = false
-                if (passages.isEmpty()) {
-                    // 没有配通道：用空 pid 发一次，至少让服务端知道「监控端活着」
-                    anyOk = sendOnce("")
-                } else {
-                    anyOk = false
-                    for ((_, pid) in passages) {
-                        if (!isActive) {
-                            interrupted = true
-                            break
-                        }
-                        if (sendOnce(pid)) anyOk = true
-                    }
-                }
-                // 被 stop() 打断的这轮不记账，否则会白记一次失败
-                if (interrupted) break
-
-                finishRound(anyOk)
-
+                doHeartbeatRound()
                 if (paused) {
                     delay(PAUSE_MS)
                     paused = false
@@ -170,6 +153,24 @@ class HeartbeatManager private constructor(context: Context) {
                 }
             }
         }
+    }
+
+    /**
+     * 执行一轮心跳请求（由内部协程循环或外部 AlarmManager 定时唤醒调用）。
+     */
+    suspend fun doHeartbeatRound(): Boolean {
+        if (!config.configured) return false
+        val passages = config.allPassages()
+        var anyOk = false
+        if (passages.isEmpty()) {
+            anyOk = sendOnce("")
+        } else {
+            for ((_, pid) in passages) {
+                if (sendOnce(pid)) anyOk = true
+            }
+        }
+        finishRound(anyOk)
+        return anyOk
     }
 
     /**
@@ -184,17 +185,21 @@ class HeartbeatManager private constructor(context: Context) {
         return ok
     }
 
+    private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
     /** 一轮（所有通道都试过）结束后的状态更新。DB 是唯一真源。 */
     private fun finishRound(ok: Boolean) {
         if (ok) {
             if (stateStore.heartFail() != 0) stateStore.setHeartFail(0)
             paused = false
+            MonitorService.updateStatus("监听中 · 心跳正常 (${timeFormat.format(Date())})")
         } else {
             val n = stateStore.heartFail() + 1
             stateStore.setHeartFail(n)
             if (n >= MAX_FAIL_BEFORE_PAUSE) {
                 // 连续失败：冷却一分钟再试，但**不停止**
                 paused = true
+                MonitorService.updateStatus("心跳异常 · 连续失败 ${n} 次")
             }
         }
     }

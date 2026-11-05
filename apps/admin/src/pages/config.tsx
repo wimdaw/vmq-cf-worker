@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Save } from 'lucide-react';
+import { QrCode, Save, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/page-shell';
+import { AppConfigDialog } from '@/components/app-config-dialog';
 import { api, ApiError } from '@/lib/api';
 
 interface ConfigPayload {
@@ -88,6 +89,7 @@ const GROUPS: ConfigGroup[] = [
 export function ConfigPage() {
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, string>>({});
+  const [appConfigOpen, setAppConfigOpen] = useState(false);
 
   const cfg = useQuery({
     queryKey: ['config'],
@@ -129,11 +131,21 @@ export function ConfigPage() {
 
   return (
     <>
-      <PageHeader
-        title="系统配置"
-        description="分组保存，改完点「保存」立即生效；密钥类留空表示保持原值"
-        className="mb-4 border-b border-border pb-4"
-      />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+        <PageHeader
+          title="系统配置"
+          description="分组保存，改完点「保存」立即生效；密钥类留空表示保持原值"
+          className="p-0 border-0"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setAppConfigOpen(true)}
+        >
+          <QrCode className="size-4" /> APP扫码配置
+        </Button>
+      </div>
 
       <Tabs defaultValue={GROUPS[0]?.id}>
         <TabsList>
@@ -147,8 +159,18 @@ export function ConfigPage() {
         {GROUPS.map((g) => (
           <TabsContent key={g.id} value={g.id}>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <CardTitle>{g.title}</CardTitle>
+                {g.id === 'secret' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => setAppConfigOpen(true)}
+                  >
+                    <Smartphone className="size-3.5" /> APP扫码配置
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
                 {g.fields.map((f) => (
@@ -178,6 +200,7 @@ export function ConfigPage() {
         ))}
       </Tabs>
 
+      <AppConfigDialog open={appConfigOpen} onOpenChange={setAppConfigOpen} />
     </>
   );
 }

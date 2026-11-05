@@ -1,17 +1,22 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
   CreditCard,
+  QrCode,
   ShoppingCart,
+  Smartphone,
   Wallet,
   Wifi,
   WifiOff,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AppConfigDialog } from '@/components/app-config-dialog';
 import { api, type MonitorState, type Stats, type SystemInfo } from '@/lib/api';
 
 /** 两列表格的一行：左标签右值 */
@@ -126,6 +131,7 @@ function Stat({
 }
 
 export function DashboardPage() {
+  const [appConfigOpen, setAppConfigOpen] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ['stats'],
     queryFn: async () => (await api.get<Stats>('/stats')).data,
@@ -163,14 +169,24 @@ export function DashboardPage() {
             <span>每 15 秒自动刷新</span>
           </div>
         </div>
-        <a
-          href="/"
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          target="_blank"
-          rel="noreferrer"
-        >
-          打开站点 <ArrowUpRight className="size-3.5" />
-        </a>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setAppConfigOpen(true)}
+          >
+            <QrCode className="size-3.5" /> APP扫码配置
+          </Button>
+          <a
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            target="_blank"
+            rel="noreferrer"
+          >
+            打开站点 <ArrowUpRight className="size-3.5" />
+          </a>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -239,8 +255,16 @@ export function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle>系统信息</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 text-xs text-primary hover:bg-muted"
+              onClick={() => setAppConfigOpen(true)}
+            >
+              <Smartphone className="size-3.5" /> APP扫码配置
+            </Button>
           </CardHeader>
           <CardContent className="pt-0">
             {info.data ? (
@@ -252,10 +276,20 @@ export function DashboardPage() {
                 <InfoRow
                   label="监控端"
                   value={
-                    <MonitorBadge
-                      state={resolveState(info.data.monitorState, info.data.monitorOnline)}
-                      detail={info.data.monitor}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <MonitorBadge
+                        state={resolveState(info.data.monitorState, info.data.monitorOnline)}
+                        detail={info.data.monitor}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setAppConfigOpen(true)}
+                      >
+                        扫码绑定
+                      </Button>
+                    </div>
                   }
                 />
                 <InfoRow label="静态资源" value={info.data.staticAssets} />
@@ -280,6 +314,8 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <AppConfigDialog open={appConfigOpen} onOpenChange={setAppConfigOpen} />
     </div>
   );
 }

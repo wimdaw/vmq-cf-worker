@@ -562,8 +562,8 @@ h1{font-size:17px;color:#333;margin:0 0 12px}p{color:#888;font-size:14px;line-he
     <link rel="icon" href="/console/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/console/apple-touch-icon.png" />
     <title>\u540E\u53F0\u7BA1\u7406</title>
-    <script type="module" crossorigin src="/console/assets/index-Bav4dOeT.js"></script>
-    <link rel="stylesheet" crossorigin href="/console/assets/index-VBAUN_GI.css">
+    <script type="module" crossorigin src="/console/assets/index-D7xGibBv.js"></script>
+    <link rel="stylesheet" crossorigin href="/console/assets/index-DFqvJYyy.css">
   </head>
   <body>
     <div id="root"></div>

@@ -20,6 +20,7 @@ import { EmptyRow, PageHeader, Panel, Pagination, Toolbar } from '@/components/p
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { QrCodeField } from '@/components/qr-code-field';
+import { AppConfigDialog } from '@/components/app-config-dialog';
 import { api, ApiError } from '@/lib/api';
 
 interface PassageRow {
@@ -102,6 +103,7 @@ export function PassagesPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [selected, setSelected] = useState<number[]>([]);
   const [form, setForm] = useState<FormState | null>(null);
+  const [appConfigOpen, setAppConfigOpen] = useState(false);
   // 收款码 / APP 配置的二维码预览：弹窗展示，不再新开页面
   const [qr, setQr] = useState<{ src: string; title: string } | null>(null);
   const [confirm, setConfirm] = useState<{ open: boolean; title: string; desc?: string; action?: () => Promise<void> }>({
@@ -259,6 +261,14 @@ export function PassagesPage() {
       <Toolbar>
         <Button size="sm" onClick={() => setForm({ ...EMPTY })}>
           <Plus /> 新增通道
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setAppConfigOpen(true)}
+        >
+          <QrCode className="size-4" /> APP扫码配置
         </Button>
         <Button
           variant="outline"
@@ -649,6 +659,8 @@ export function PassagesPage() {
           }
         }}
       />
+
+      <AppConfigDialog open={appConfigOpen} onOpenChange={setAppConfigOpen} />
     </>
   );
 }
